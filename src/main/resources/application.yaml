@@ -1,0 +1,6 @@
+spring:
+  application:
+    name: vote
+  jpa:
+    open-in-view: false # true인 경우 HTTP 요청이 시작될 때 DB 커넥션을 열어 Controller까지 유지
+                        # Controller에서도 Lazy Loading이 가능해지는 편의성이 있지만 성능상 불리

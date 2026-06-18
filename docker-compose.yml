@@ -1,0 +1,28 @@
+services:
+  mysql:
+    image: mysql:8.4 # 이미지 이름 : 버전
+    container_name: vote-mysql # docker ps에서 보이는 컨테이너 이름
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MYSQL_DATABASE: ${MYSQL_DATABASE}
+      MYSQL_USER: ${MYSQL_USER}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+    ports:
+      - "3307:3306" # 호스트포트 : 컨테이너포트
+    volumes:
+      - mysql-data:/var/lib/mysql # 볼륨명 : 컨테이너 내 데이터 경로 MySQL은 /var/lib/mysql에 데이터를 저장
+    command: --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci # 추가옵션
+                                                                                  # 문자셋 설정
+
+  redis:
+    image: redis:8.0
+    container_name: vote-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    command: redis-server --appendonly yes # AOF 영속성 활성화 모든 쓰기 명령을 디스크에 기록
+
+volumes:
+  mysql-data:
+  redis-data:
