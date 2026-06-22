@@ -13,7 +13,7 @@ public class VoteOption {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long Id; // DB 내부 식별자
+    private Long id; // DB 내부 식별자
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "poll_id", nullable = false)

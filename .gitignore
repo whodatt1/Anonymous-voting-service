@@ -41,4 +41,5 @@ src/main/generated
 logs/
 *.log
 CLAUDE.md
-docs/
+
+docs/project.md

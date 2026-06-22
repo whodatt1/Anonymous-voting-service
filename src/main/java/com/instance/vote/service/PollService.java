@@ -4,11 +4,13 @@ import com.instance.vote.domain.Poll;
 import com.instance.vote.domain.VoteOption;
 import com.instance.vote.dto.PollRequest;
 import com.instance.vote.dto.PollResponse;
+import com.instance.vote.exception.BusinessException;
+import com.instance.vote.exception.ErrorCode;
 import com.instance.vote.repository.PollRepository;
 import com.instance.vote.repository.VoteOptionRepository;
-import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.UUID;
@@ -42,10 +44,22 @@ public class PollService {
         );
     }
 
+    @Transactional(readOnly = true)
     public PollResponse.Detail getPoll(String shareCode) {
+        Poll poll = pollRepository.findByShareCode(shareCode)
+                .orElseThrow(() -> new BusinessException(ErrorCode.POLL_NOT_FOUND));
 
+        List<PollResponse.OptionDetail> options = poll.getOptions().stream()
+                .map(vo -> new PollResponse.OptionDetail(vo.getId(), vo.getContent(), 0L))
+                .toList();
 
-        return null;
+        return new PollResponse.Detail(
+                poll.getShareCode(),
+                poll.getTitle(),
+                poll.getStatus().name(),
+                poll.getExpiresAt(),
+                options
+        );
     }
 
     public void closePoll(String shareCode, String hostToken) {

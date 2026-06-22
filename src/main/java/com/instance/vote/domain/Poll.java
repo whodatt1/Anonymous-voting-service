@@ -7,6 +7,8 @@ import lombok.NoArgsConstructor;
 import org.hibernate.annotations.CreationTimestamp;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
 
 @Entity
 @Getter
@@ -38,6 +40,10 @@ public class Poll {
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt; // 생성 시각
+
+    @OneToMany(mappedBy = "poll", fetch = FetchType.LAZY)
+    @OrderBy("displayOrder ASC")
+    private List<VoteOption> options = new ArrayList<>();
 
     public static Poll create(String title, String shareCode,
                               String hostToken, LocalDateTime expiresAt) {
