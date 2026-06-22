@@ -80,12 +80,6 @@
 - 대안: Redis만 사용(장애 시 집계 유실), VoteOption.count 컬럼 방식(동시 UPDATE 경합 발생 — Redis 도입 이유를 DB에서 재현)
 - 채택 이유 / 트레이드오프: Redis는 빠른 실시간 집계, DB VoteRecord는 영속 원본으로 역할 분리. 결과 항상 공개로 UX 향상, Rate Limiting으로 무한 새로고침 방지. 매 투표마다 DB INSERT가 발생하나 INSERT는 행 경합이 없어 허용 가능. SSE는 Host 전용으로 유지해 커넥션 고갈 방지.
 
-## [2026-06-22] getPoll 조회 전략 — @OneToMany + @EntityGraph 채택
-- 결정: Poll에 @OneToMany(VoteOption) 관계 추가, getPoll은 JOIN FETCH(@EntityGraph)로 단일 쿼리 조회
-- 배경: Poll/VoteOption 분리 조회(2쿼리) vs JOIN FETCH(1쿼리) 비교. Poll→VoteOption은 명확한 부모-자식 관계이므로 엔티티에 표현하는 것이 적절
-- 대안: VoteOptionRepository.findByPollOrderByDisplayOrder로 분리 조회 — 구현 단순하나 DB 왕복 2회
-- 채택 이유 / 트레이드오프: options 필요 여부가 용도마다 다르므로 메서드를 분리(findWithOptionsByShareCode / findByShareCode)해야 함. @EntityGraph는 JPQL fetch join과 동일한 SQL을 생성하나 복잡한 조건 조합 시 JPQL이 더 적합
-
 ## [2026-06-21] 엔티티 설계 확정 (Poll / VoteOption / VoteRecord)
 - 결정: 3개 엔티티 필드 확정. Poll에 status(OPEN/CLOSED) 추가, 투표는 단일 선택만 지원
 - 배경: 비회원 식별·집계 구조 결정을 바탕으로 실제 DB 스키마 설계 필요
@@ -103,3 +97,9 @@
 - 배경: JPA의 protected no-arg 생성자 요구와 엔티티 불변 규칙(status는 생성 시 항상 OPEN) 을 동시에 만족시킬 생성 수단이 필요
 - 대안: @Builder — @AllArgsConstructor(PRIVATE) 추가로 JPA 호환은 가능하나 status·id·createdAt 등 외부에서 건드리면 안 되는 필드까지 Builder에 노출됨
 - 채택 이유 / 트레이드오프: 팩토리 메서드 내부에서 status=OPEN을 강제해 호출부의 실수를 원천 차단. 필드 수가 4개 내외라 Builder의 가독성 이점도 크지 않음. 단, 파라미터가 많아지거나 선택적 조합이 생기면 Builder 재검토 가능.
+
+## [2026-06-22] getPoll 조회 전략 — @OneToMany + @EntityGraph 채택
+- 결정: Poll에 @OneToMany(VoteOption) 관계 추가, getPoll은 JOIN FETCH(@EntityGraph)로 단일 쿼리 조회
+- 배경: Poll/VoteOption 분리 조회(2쿼리) vs JOIN FETCH(1쿼리) 비교. Poll→VoteOption은 명확한 부모-자식 관계이므로 엔티티에 표현하는 것이 적절
+- 대안: VoteOptionRepository.findByPollOrderByDisplayOrder로 분리 조회 — 구현 단순하나 DB 왕복 2회
+- 채택 이유 / 트레이드오프: options 필요 여부가 용도마다 다르므로 메서드를 분리(findWithOptionsByShareCode / findByShareCode)해야 함. @EntityGraph는 JPQL fetch join과 동일한 SQL을 생성하나 복잡한 조건 조합 시 JPQL이 더 적합
