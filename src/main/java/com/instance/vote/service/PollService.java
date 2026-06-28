@@ -1,6 +1,7 @@
 package com.instance.vote.service;
 
 import com.instance.vote.domain.Poll;
+import com.instance.vote.domain.PollStatus;
 import com.instance.vote.domain.VoteOption;
 import com.instance.vote.dto.PollRequest;
 import com.instance.vote.dto.PollResponse;
@@ -46,7 +47,7 @@ public class PollService {
 
     @Transactional(readOnly = true)
     public PollResponse.Detail getPoll(String shareCode) {
-        Poll poll = pollRepository.findByShareCode(shareCode)
+        Poll poll = pollRepository.findWithOptionByShareCode(shareCode)
                 .orElseThrow(() -> new BusinessException(ErrorCode.POLL_NOT_FOUND));
 
         List<PollResponse.OptionDetail> options = poll.getOptions().stream()
@@ -63,6 +64,17 @@ public class PollService {
     }
 
     public void closePoll(String shareCode, String hostToken) {
+        Poll poll = pollRepository.findByShareCode(shareCode)
+                .orElseThrow(() -> new BusinessException(ErrorCode.POLL_NOT_FOUND));
 
+        if (!hostToken.equals(poll.getHostToken())) {
+            throw new BusinessException(ErrorCode.UNAUTHORIZE_HOST);
+        }
+
+        if (poll.getStatus() == PollStatus.CLOSED) {
+            throw new BusinessException(ErrorCode.POLL_ALREADY_CLOSED);
+        }
+
+        poll.close();
     }
 }

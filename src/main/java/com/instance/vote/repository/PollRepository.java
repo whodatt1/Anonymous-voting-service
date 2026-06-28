@@ -9,5 +9,7 @@ import java.util.Optional;
 public interface PollRepository extends JpaRepository<Poll, Long> {
 
     @EntityGraph(attributePaths = "options")
+    Optional<Poll> findWithOptionByShareCode(String shareCode);
+
     Optional<Poll> findByShareCode(String shareCode);
 }
