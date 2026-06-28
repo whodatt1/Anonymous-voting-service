@@ -41,4 +41,13 @@ public class VoteRecord {
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt; // 투표 시각
+
+    public static VoteRecord create(Poll poll, VoteOption option,
+                                    String participantToken) {
+        VoteRecord voteRecord = new VoteRecord();
+        voteRecord.poll = poll;
+        voteRecord.option = option;
+        voteRecord.participantToken = participantToken;
+        return voteRecord;
+    }
 }

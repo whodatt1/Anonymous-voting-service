@@ -103,3 +103,19 @@
 - 배경: Poll/VoteOption 분리 조회(2쿼리) vs JOIN FETCH(1쿼리) 비교. Poll→VoteOption은 명확한 부모-자식 관계이므로 엔티티에 표현하는 것이 적절
 - 대안: VoteOptionRepository.findByPollOrderByDisplayOrder로 분리 조회 — 구현 단순하나 DB 왕복 2회
 - 채택 이유 / 트레이드오프: options 필요 여부가 용도마다 다르므로 메서드를 분리(findWithOptionsByShareCode / findByShareCode)해야 함. @EntityGraph는 JPQL fetch join과 동일한 SQL을 생성하나 복잡한 조건 조합 시 JPQL이 더 적합
+
+## [2026-06-28] castVote 설계 — 시그니처·내부 로직·Redis 키 구조 확정
+- 결정: 파라미터는 VoteRequest.Cast(optionId, participantToken) DTO, 반환은 void (204 No Content)
+- 배경: 투표 제출 API의 값이 URL·바디·쿠키 세 소스에서 오므로 Controller가 조립해 Service에 전달하는 역할 분리 필요
+- 대안: flat 파라미터 3개 / Service가 HttpServletRequest 직접 처리 / 집계 포함 응답
+- 채택 이유 / 트레이드오프: Controller 조립 책임 명확화, Service가 HTTP 레이어를 모르므로 단위 테스트 시 문자열만 전달하면 됨. 집계 응답은 단일 책임 위반으로 제외.
+- 내부 로직 확정: Poll 유효성(CLOSED·만료) → VoteOption 소속 확인 → Redis SETNX 1차 방어 → DB INSERT 2차 방어 → Redis INCR
+- Redis 키: 중복 체크 vote:dup:{pollId}:{participantToken} (TTL=expiresAt까지 남은 초), 집계 vote:count:{pollId}:{optionId} (TTL 없음)
+- Redis SETNX 성공 후 DB 롤백 시 키 잔존 문제는 Phase 0에서 인지만 하고 미처리 — TTL 만료로 자연 정리
+- ErrorCode 도메인별 prefix 전략 채택: POLL_NNN / OPTION_NNN / VOTE_NNN — 에러 발생 시 어느 도메인 문제인지 즉시 식별 가능
+
+## [2026-06-28] participantToken 쿠키 발급 시점
+- 결정: 투표 페이지 첫 진입(GET /votes/{shareCode}) 시 발급, 쿠키 이미 있으면 재발급 안 함
+- 배경: 투표 제출 시점에 @CookieValue(required=true)로 받으므로 사전 발급이 필수
+- 대안: 투표 제출 시점에 없으면 그때 발급
+- 채택 이유 / 트레이드오프: 쿠키 발급과 투표 제출 로직을 분리. Controller에서 쿠키 존재 여부를 확인해 없을 때만 UUID 발급 후 Set-Cookie 헤더에 담아 응답.
