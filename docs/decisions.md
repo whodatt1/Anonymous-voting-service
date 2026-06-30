@@ -113,9 +113,28 @@
 - Redis 키: 중복 체크 vote:dup:{pollId}:{participantToken} (TTL=expiresAt까지 남은 초), 집계 vote:count:{pollId}:{optionId} (TTL 없음)
 - Redis SETNX 성공 후 DB 롤백 시 키 잔존 문제는 Phase 0에서 인지만 하고 미처리 — TTL 만료로 자연 정리
 - ErrorCode 도메인별 prefix 전략 채택: POLL_NNN / OPTION_NNN / VOTE_NNN — 에러 발생 시 어느 도메인 문제인지 즉시 식별 가능
+- DTO 분리 확정(2026-06-30 구현): VoteRequest.Body(optionId만, 클라이언트 바디용) / VoteRequest.Cast(optionId + participantToken, Controller가 조립하여 Service에 전달). participantToken을 바디로 받으면 HttpOnly 쿠키의 보안 의미가 훼손되므로(JS 접근 불가여야 하는데 바디에 담으려면 JS가 값을 알아야 함) 쿠키에서만 읽도록 강제.
 
 ## [2026-06-28] participantToken 쿠키 발급 시점
 - 결정: 투표 페이지 첫 진입(GET /votes/{shareCode}) 시 발급, 쿠키 이미 있으면 재발급 안 함
 - 배경: 투표 제출 시점에 @CookieValue(required=true)로 받으므로 사전 발급이 필수
 - 대안: 투표 제출 시점에 없으면 그때 발급
 - 채택 이유 / 트레이드오프: 쿠키 발급과 투표 제출 로직을 분리. Controller에서 쿠키 존재 여부를 확인해 없을 때만 UUID 발급 후 Set-Cookie 헤더에 담아 응답.
+
+## [2026-06-30] Controller 응답 방식 — ResponseEntity 전체 통일
+- 결정: 모든 Controller 메서드의 반환 타입을 ResponseEntity<T>로 통일
+- 배경: GET /votes/{shareCode}에서 participantToken 쿠키를 Set-Cookie 헤더에 동적으로 담아야 하므로 헤더 조작이 필수
+- 대안: @ResponseStatus 애노테이션 + HttpServletResponse 파라미터 — 상태 코드는 간단하지만 동적 헤더 추가 시 서블릿 API가 Controller 파라미터에 노출됨
+- 채택 이유 / 트레이드오프: 상태 코드·헤더·바디를 한 곳에서 조립 가능하고, 쿠키 포함 응답이 필요한 엔드포인트와의 일관성 확보. 반환 타입이 ResponseEntity<PollResponse.Detail>처럼 길어지는 단점은 수용.
+
+## [2026-06-30] 쿠키 발급 방식 — ResponseCookie 채택
+- 결정: participantToken 쿠키 발급에 Spring의 ResponseCookie 빌더 사용
+- 배경: GET /votes/{shareCode} 첫 진입 시 HttpOnly 쿠키를 안전하게 발급해야 하며, SameSite 속성까지 제어 필요
+- 대안: javax.servlet.http.Cookie — HttpOnly 설정은 가능하나 SameSite 속성 설정에 헤더 문자열 직접 조작이 필요하고, HttpServletResponse 파라미터 의존 발생
+- 채택 이유 / 트레이드오프: 빌더 API로 HttpOnly·Path·MaxAge·SameSite를 타입 안전하게 설정 가능. 서블릿 API 직접 의존 없이 ResponseEntity 헤더에 자연스럽게 통합됨.
+
+## [2026-06-30] GlobalExceptionHandler 예외 처리 분리 원칙
+- 결정: 도메인 예외(BusinessException)는 ErrorCode로, Spring 프레임워크가 던지는 예외는 별도 @ExceptionHandler로 분리
+- 배경: @CookieValue(required=true) 누락 시 MissingRequestCookieException, @Valid 실패 시 MethodArgumentNotValidException을 처리할 방법 결정 필요
+- 대안: 프레임워크 예외도 ErrorCode에 추가하고 BusinessException으로 감싸 처리
+- 채택 이유 / 트레이드오프: 프레임워크 예외를 BusinessException으로 wrapping하면 Spring이 던진 예외를 catch해서 다시 throw하는 불필요한 변환 레이어가 생김. 예외의 발생 주체(우리 도메인 코드 vs Spring)로 책임을 분리해 ErrorCode는 도메인 의미만 담도록 유지. 추가된 핸들러: MissingRequestCookieException → 400, MethodArgumentNotValidException → 400.
