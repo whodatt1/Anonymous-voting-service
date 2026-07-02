@@ -195,3 +195,21 @@
   - 타임아웃 후 클라이언트 재연결 시도 시 투표 만료 여부 확인 → 만료면 POLL_EXPIRED 반환
 - 대안: 무한정 타임아웃(0L) — send()가 들어올 때만 비정상 종료를 감지하므로 투표 기간이 길면 좀비 연결·스레드 장시간 점유 위험
 - 채택 이유 / 트레이드오프: participantToken 쿠키 MaxAge도 expiresAt 기준 동적 계산 — 동일 패턴으로 일관성 확보. expiresAt이 안전망 역할을 하여 비정상 종료 시에도 스레드 점유 시간에 상한이 생김.
+
+## [2026-07-02] SSE 구현 확정 — validateSseConnection 반환 타입 및 구현 세부 결정
+- 결정: validateSseConnection()이 Poll 대신 PollResponse.Detail을 반환해 DB 조회 1회로 검증+스냅샷 데이터를 통합 처리
+- 배경: SseController에서 검증(validateSseConnection)과 스냅샷 전송(getPoll)을 분리하면 DB 조회가 2회 발생
+- 대안: Poll 반환 후 Controller에서 getPoll() 추가 호출 — 구현 단순하나 같은 Poll을 두 번 조회
+- 채택 이유 / 트레이드오프: validateSseConnection이 Detail을 반환하면 pollId(register 키)와 options(스냅샷 데이터)를 한 번에 확보. 메서드 책임이 "검증+초기 데이터 제공"으로 넓어지는 단점은 SSE 연결 진입점 전용 메서드임을 명시해 수용.
+- 추가 확정 사항:
+  - SseEmitterManager.remove() 내 isEmpty 정리 제외 — completeAll()이 Map 정리를 전담, isEmpty 체크와 emitters.remove() 사이 레이스 컨디션 방지
+  - 스냅샷 send() IOException 처리: 에러 응답 대신 emitter.completeWithError() 호출 → onError 콜백 발화 → Map에서 정리
+  - 만료 투표 status 일괄 업데이트 스케줄러 미도입 — 마감 조건(status=CLOSED OR expiresAt 경과)을 각 진입점(castVote/validateSseConnection)에서 직접 체크하는 방식 유지. 스케줄러 도입 시 불일치 구간 발생 및 복잡도 증가 우려로 보류.
+
+## [2026-07-02] 테스트 전략 확정 — 단위/통합 분리 및 인프라 격리 방식
+- 결정: 단위 테스트는 Mockito, 통합 테스트는 Testcontainers(MySQL 8.0 + Redis 7) 채택
+- 배경: PollService·VoteService가 JPA Repository + RedisTemplate을 동시에 의존하는 Phase 0 구조에서 각 레이어의 테스트 방식 결정 필요
+- 채택 이유 / 트레이드오프:
+  - 단위 테스트: Mockito로 모든 의존성 대체. JPA 없이 실행되므로 @OneToMany 관계가 populate되지 않음 → `ReflectionTestUtils.setField(poll, "options", List.of(option))`로 강제 주입 필요. 이 불편함 자체가 Phase 0 레이어드 아키텍처 강결합 체감 실험의 일부.
+  - 통합 테스트: Testcontainers로 MySQL/Redis Docker 컨테이너 기동. @ServiceConnection으로 컨테이너 접속 정보 자동 주입. application-local.yaml은 spring-dotenv 환경 변수를 사용하므로 테스트 전용 application-test.yaml 별도 생성 + @ActiveProfiles("test") 적용. ddl-auto: create-drop으로 테스트 완료 시 스키마 자동 삭제.
+- 동시성 테스트 패턴: CountDownLatch(startLatch=1 동시 출발, doneLatch=N 완료 대기) + ExecutorService.newFixedThreadPool(N) + AtomicInteger 성공/실패 카운팅
