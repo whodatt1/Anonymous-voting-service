@@ -5,6 +5,7 @@ import com.instance.vote.domain.PollStatus;
 import com.instance.vote.domain.VoteOption;
 import com.instance.vote.dto.PollRequest;
 import com.instance.vote.dto.PollResponse;
+import com.instance.vote.event.SseEmitterManager;
 import com.instance.vote.exception.BusinessException;
 import com.instance.vote.exception.ErrorCode;
 import com.instance.vote.repository.PollRepository;
@@ -16,6 +17,7 @@ import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -28,6 +30,7 @@ import java.util.stream.IntStream;
 @RequiredArgsConstructor
 public class PollService {
 
+    private final SseEmitterManager sseEmitterManager;
     private final PollRepository pollRepository;
     private final VoteOptionRepository voteOptionRepository;
     private final StringRedisTemplate stringRedisTemplate;
@@ -58,6 +61,53 @@ public class PollService {
         Poll poll = pollRepository.findWithOptionByShareCode(shareCode)
                 .orElseThrow(() -> new BusinessException(ErrorCode.POLL_NOT_FOUND));
 
+        return toDetail(poll);
+    }
+
+    public void closePoll(String shareCode, String hostToken) {
+        Poll poll = pollRepository.findByShareCode(shareCode)
+                .orElseThrow(() -> new BusinessException(ErrorCode.POLL_NOT_FOUND));
+
+        // 호스트 토큰 검증
+        if (!hostToken.equals(poll.getHostToken())) {
+            throw new BusinessException(ErrorCode.UNAUTHORIZE_HOST);
+        }
+
+        // 닫혔는지 여부
+        if (poll.getStatus() == PollStatus.CLOSED) {
+            throw new BusinessException(ErrorCode.POLL_ALREADY_CLOSED);
+        }
+
+        poll.close();
+        sseEmitterManager.completeAll(poll.getId());
+    }
+
+    // Sse 연결 검증용 메서드
+    @Transactional(readOnly = true)
+    public PollResponse.Detail validateSseConnection(String shareCode, String hostToken) {
+        Poll poll = pollRepository.findWithOptionByShareCode(shareCode)
+                .orElseThrow(() -> new BusinessException(ErrorCode.POLL_NOT_FOUND));
+
+        // 호스트 토큰 검증
+        if (!hostToken.equals(poll.getHostToken())) {
+            throw new BusinessException(ErrorCode.UNAUTHORIZE_HOST);
+        }
+
+        // 닫혔는지 여부
+        if (poll.getStatus() == PollStatus.CLOSED) {
+            throw new BusinessException(ErrorCode.POLL_ALREADY_CLOSED);
+        }
+
+        // 만료 시간이 지났는지 검사
+        if (poll.getExpiresAt().isBefore(LocalDateTime.now())) {
+            throw new BusinessException(ErrorCode.POLL_EXPIRED);
+        }
+
+        return toDetail(poll);
+    }
+
+    // 중복되는 코드 private 메서드로 분리
+    private PollResponse.Detail toDetail(Poll poll) {
         // 람다 안에서 외부 변수를 쓰려면 해당 변수가 한번만 할당되어야 함 별도 private 메서드로 추출하여 한번만 할당
         Map<Long, Long> counts = resolveVoteCounts(poll.getId(), poll.getOptions());
 
@@ -66,27 +116,13 @@ public class PollService {
                 .toList();
 
         return new PollResponse.Detail(
+                poll.getId(),
                 poll.getShareCode(),
                 poll.getTitle(),
                 poll.getStatus().name(),
                 poll.getExpiresAt(),
                 options
         );
-    }
-
-    public void closePoll(String shareCode, String hostToken) {
-        Poll poll = pollRepository.findByShareCode(shareCode)
-                .orElseThrow(() -> new BusinessException(ErrorCode.POLL_NOT_FOUND));
-
-        if (!hostToken.equals(poll.getHostToken())) {
-            throw new BusinessException(ErrorCode.UNAUTHORIZE_HOST);
-        }
-
-        if (poll.getStatus() == PollStatus.CLOSED) {
-            throw new BusinessException(ErrorCode.POLL_ALREADY_CLOSED);
-        }
-
-        poll.close();
     }
 
     private Map<Long, Long> resolveVoteCounts(Long pollId, List<VoteOption> options) {

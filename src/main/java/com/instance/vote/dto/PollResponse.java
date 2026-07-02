@@ -15,6 +15,7 @@ public class PollResponse {
 
     // 일반 조회 응답 - hostToken 미포함
     public record Detail (
+        Long pollId,
         String shareCode,
         String title,
         String status,

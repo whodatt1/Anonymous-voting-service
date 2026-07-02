@@ -5,12 +5,15 @@ import com.instance.vote.domain.PollStatus;
 import com.instance.vote.domain.VoteOption;
 import com.instance.vote.domain.VoteRecord;
 import com.instance.vote.dto.VoteRequest;
+import com.instance.vote.event.SseEmitterManager;
+import com.instance.vote.event.VoteCastEvent;
 import com.instance.vote.exception.BusinessException;
 import com.instance.vote.exception.ErrorCode;
 import com.instance.vote.repository.PollRepository;
 import com.instance.vote.repository.VoteOptionRepository;
 import com.instance.vote.repository.VoteRecordRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
@@ -26,6 +29,7 @@ import java.util.concurrent.TimeUnit;
 @RequiredArgsConstructor
 public class VoteService {
 
+    private final ApplicationEventPublisher eventPublisher;
     private final PollRepository pollRepository;
     private final VoteRecordRepository voteRecordRepository;
     // 문자열 키/값만 쓰는 경우 StringRedisTemplate을 주로 사용
@@ -77,5 +81,8 @@ public class VoteService {
         // Redis INCR - 집계 카운트
         String countKey = "vote:count:" + poll.getId() + ":" + request.optionId();
         stringRedisTemplate.opsForValue().increment(countKey);
+
+        // Sse 이벤트 발행
+        eventPublisher.publishEvent(new VoteCastEvent(poll.getId(), shareCode));
     }
 }

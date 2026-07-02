@@ -14,6 +14,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.ValueOperations;
@@ -37,6 +38,9 @@ public class VoteServiceTest {
 
     @Mock
     VoteOptionRepository voteOptionRepository;
+
+    @Mock
+    ApplicationEventPublisher eventPublisher; // SSE 구현하여 추가
 
     @Mock
     VoteRecordRepository voteRecordRepository;
