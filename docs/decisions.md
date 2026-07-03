@@ -213,3 +213,29 @@
   - 단위 테스트: Mockito로 모든 의존성 대체. JPA 없이 실행되므로 @OneToMany 관계가 populate되지 않음 → `ReflectionTestUtils.setField(poll, "options", List.of(option))`로 강제 주입 필요. 이 불편함 자체가 Phase 0 레이어드 아키텍처 강결합 체감 실험의 일부.
   - 통합 테스트: Testcontainers로 MySQL/Redis Docker 컨테이너 기동. @ServiceConnection으로 컨테이너 접속 정보 자동 주입. application-local.yaml은 spring-dotenv 환경 변수를 사용하므로 테스트 전용 application-test.yaml 별도 생성 + @ActiveProfiles("test") 적용. ddl-auto: create-drop으로 테스트 완료 시 스키마 자동 삭제.
 - 동시성 테스트 패턴: CountDownLatch(startLatch=1 동시 출발, doneLatch=N 완료 대기) + ExecutorService.newFixedThreadPool(N) + AtomicInteger 성공/실패 카운팅
+
+## [2026-07-03] 프론트엔드 레포 구조 — Monorepo 채택
+- 결정: 프론트엔드를 별도 레포로 분리하지 않고 같은 레포 /frontend 폴더에 추가
+- 배경: 1인 포트폴리오 프로젝트에서 레포 분리 시 관리 부담 증가, 프론트는 시연 보조 역할
+- 대안: Polyrepo(별도 레포) — CI 완전 독립 가능하나 API 변경 시 두 레포 동시 작업 필요
+- 채택 이유 / 트레이드오프: 단일 레포에서 백/프론트 PR 통합 관리, 컨텍스트 스위칭 최소화. 백엔드 CI 불필요한 실행 방지를 위해 ci.yml에 paths 필터 추가 예정.
+
+## [2026-07-03] GitHub Actions CI 파이프라인 구축
+- 결정: PR/push to main 시 `./gradlew test --no-daemon` 자동 실행. ubuntu-latest Runner 사용
+- 배경: 통합 테스트 완료 시점에 맞춰 CI 즉시 적용(project.md 원칙)
+- 채택 이유 / 트레이드오프: ubuntu-latest에 Docker 기본 탑재되어 Testcontainers 추가 설정 없이 동작. `VoteApplicationTests`는 `.env` 없는 CI 환경에서 DataSource 연결 실패로 삭제 — 단위/통합 테스트로 대체. gradlew 실행 권한은 `git update-index --chmod=+x`로 Git에 영구 저장.
+
+## [2026-07-03] 프론트엔드 기술 스택 선택
+- 결정: Vite + React Router v6 + Tailwind CSS 채택
+- 배경: 백엔드 지원자 포트폴리오용 시연 프론트로, 빠른 개발과 모던한 결과물이 목표
+- 채택 이유 / 트레이드오프: Vite는 ES Module 기반으로 개발 서버 즉시 시작, CRA는 유지보수 중단 상태. Tailwind CSS는 utility-first로 디자인 작업 속도 우수. React Router v6으로 `/votes/:shareCode`, `/votes/:shareCode/manage` 클라이언트 라우팅 처리.
+
+## [2026-07-03] Vite proxy bypass 전략
+- 결정: `/votes/*` 요청 중 `Accept: text/html` 헤더가 있으면 프록시에서 제외(React 앱 서빙), 없으면 백엔드로 전달
+- 배경: Vite proxy를 `/votes` 전체에 걸면 브라우저 페이지 이동도 백엔드로 넘어가 JSON이 반환되는 문제 발생
+- 채택 이유 / 트레이드오프: 브라우저 페이지 이동은 `Accept: text/html` 포함, fetch 호출은 미포함이라는 HTTP 표준 동작을 활용해 백엔드 변경 없이 해결.
+
+## [2026-07-03] 참여자 결과 조회 방식
+- 결정: 참여자는 SSE 없이 REST 스냅샷으로만 결과 조회. 투표 직후 `getPoll` 재호출로 최신 집계 반영
+- 배경: project.md 정책 — "결과는 항상 공개, 참여자 조회는 SSE가 아닌 REST 스냅샷으로 제공"
+- 채택 이유 / 트레이드오프: castVote 완료 후 getPoll 재조회로 Redis 실제 집계값 반영. 요청 1회 추가되나 정확성 확보. 결과 화면 전환은 `viewingResults` 상태 토글로 처리(URL 변경 없음).
