@@ -136,7 +136,43 @@ public class CastVoteIntegrationTest {
     }
 
     @Test
-    void castVote_N명이_동시에_투표_N개집계() {
+    void castVote_N명이_동시에_투표_N개집계() throws InterruptedException {
 
+        // 멀티스레드 환경 구성
+        int threadCount = 10;
+        ExecutorService executor = Executors.newFixedThreadPool(threadCount);
+        CountDownLatch startLatch = new CountDownLatch(1);
+        CountDownLatch doneLatch = new CountDownLatch(threadCount);
+
+        // 예외 수집
+        AtomicInteger successCount = new AtomicInteger(0);
+
+        for (int i = 0; i < threadCount; i++) {
+            final int idx = i;
+            executor.submit(() -> {
+                try {
+                    startLatch.await();
+                    voteService.castVote(shareCode, new VoteRequest.Cast(optionId, "token-" + idx));
+                    successCount.incrementAndGet();
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                } finally {
+                    doneLatch.countDown();
+                }
+            });
+        }
+
+        startLatch.countDown();
+        doneLatch.await();
+        executor.shutdown();
+
+        // 검증
+        assertThat(successCount.get()).isEqualTo(10);
+        assertThat(voteRecordRepository.count()).isEqualTo(10L);
+
+        String redisCount = stringRedisTemplate.opsForValue()
+                .get("vote:count:" + pollId + ":" + optionId);
+
+        assertThat(Long.parseLong(redisCount)).isEqualTo(10L);
     }
 }
