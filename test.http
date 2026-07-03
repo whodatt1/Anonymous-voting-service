@@ -1,0 +1,28 @@
+ ### 1. 투표 생성
+POST http://localhost:8080/votes
+Content-Type: application/json
+
+{
+"title": "SSE 테스트 투표",
+"options": ["옵션A", "옵션B", "옵션C"],
+"expiresAt": "2026-07-02T23:59:59"
+}
+
+### 2. 투표 조회 (participantToken 쿠키 발급)
+GET http://localhost:8080/votes/ba583be8
+
+### 3. SSE 연결
+GET http://localhost:8080/votes/ba583be8/stream?hostToken=0c81953f-efbe-45ab-b54b-669df5f840fc
+Accept: text/event-stream
+
+### 4. 투표 제출
+POST http://localhost:8080/votes/ba583be8/vote
+Content-Type: application/json
+Cookie: participantToken=31795956-b77a-4c7a-84de-94147ed454ff
+
+{
+"optionId": 1
+}
+
+### 5. 투표 종료
+PATCH http://localhost:8080/votes/ba583be8/close?hostToken=0c81953f-efbe-45ab-b54b-669df5f840fc
