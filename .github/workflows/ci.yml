@@ -1,0 +1,34 @@
+name: CI
+
+on: # 트리거
+  pull_request:
+    branches:
+      - main
+
+  push:
+    branches:
+      - main
+
+jobs:
+  test:
+    runs-on: ubuntu-latest # 해당 머신에서 수행
+
+    steps: # 순서대로 실행할 단계들
+      # 1단계: 코드 체크아웃
+      - uses: actions/checkout@v4
+
+      # 2단계: Java 21 설치
+      - uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin' # JDK 배포판 이름
+          java-version: '21'
+
+      # 3단계: Gradle 캐시 + 래퍼 설정 (캐시 자동 관리)
+      # ./gradlew test가 처음 실행될 때 의존성을 전 부다운로드
+      # 캐시가 없다면 매 PR 마다 시간이 다소 소요
+      # 캐시 자동 관리
+      - uses: gradle/actions/setup-gradle@v4
+
+      # 4단계: 테스트 실행
+      - run: ./gradlew test --no-daemon
+      # --no-daemon: CI에서는 Gradle 데몬을 유지할 필요 없어 메모리 절약
