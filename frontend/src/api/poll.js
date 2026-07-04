@@ -16,6 +16,19 @@ export async function createPoll(title, options, expiresAt) {
   return res.json();
 }
 
+export async function getHostPoll(shareCode) {
+  const res = await fetch(`/votes/${shareCode}/host`, {
+    method: 'GET'
+  })
+
+  if (!res.ok) {
+    const err = await res.json()
+    throw new Error(err.message)
+  }
+
+  return res.json()
+}
+
 export async function getPoll(shareCode) {
   const res = await fetch(`/votes/${shareCode}`, {
     method: 'GET'
@@ -42,8 +55,8 @@ export async function castVote(shareCode, optionId) {
   }
 }
 
-export async function closePoll(shareCode, hostToken) {
-  const res = await fetch(`/votes/${shareCode}/close?hostToken=${hostToken}`, {
+export async function closePoll(shareCode) {
+  const res = await fetch(`/votes/${shareCode}/close`, {
     method: 'PATCH'
   })
 

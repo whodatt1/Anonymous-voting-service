@@ -32,7 +32,7 @@ export default function Home() {
     try {
       // TODO: api/poll.js의 createPoll 호출
       const result = await createPoll(title, options, expiresAt)
-      navigate(`/votes/${result.shareCode}/manage?hostToken=${result.hostToken}`)
+      navigate(`/votes/${result.shareCode}/manage`)
     } catch (err) {
       setError(err.message || '투표 생성에 실패했습니다.')
     } finally {

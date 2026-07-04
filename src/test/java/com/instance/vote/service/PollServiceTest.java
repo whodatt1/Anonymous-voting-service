@@ -56,6 +56,70 @@ public class PollServiceTest {
     PollService pollService; // 위 Mock들이 주입된 진짜 Service
 
     @Test
+    void getHostPoll_존재하지않는투표_예외발생() {
+        given(pollRepository.findWithOptionByShareCode(anyString()))
+                .willReturn(Optional.empty());
+
+        BusinessException ex = assertThrows(BusinessException.class,
+                () -> pollService.getHostPoll("dummyCode", "dummyToken"));
+
+        assertThat(ex.getErrorCode()).isEqualTo(ErrorCode.POLL_NOT_FOUND);
+    }
+
+    @Test
+    void getHostPoll_호스트토큰불일치_예외발생() {
+        Poll poll = Poll.create("테스트 투표", "dummyCode", "correctToken", LocalDateTime.now().plusDays(1));
+
+        given(pollRepository.findWithOptionByShareCode(anyString()))
+                .willReturn(Optional.of(poll));
+
+        BusinessException ex = assertThrows(BusinessException.class,
+                () -> pollService.getHostPoll("dummyCode", "wrongToken"));
+
+        assertThat(ex.getErrorCode()).isEqualTo(ErrorCode.UNAUTHORIZE_HOST);
+    }
+
+    @Test
+    void getPoll_hostToken일치시_isHost_true() {
+        Poll poll = Poll.create("테스트 투표", "dummyCode", "dummyToken", LocalDateTime.now().plusDays(1));
+
+        given(pollRepository.findWithOptionByShareCode(anyString()))
+                .willReturn(Optional.of(poll));
+
+        PollResponse.Detail response = pollService.getPoll("dummyCode", null, "dummyToken");
+
+        assertThat(response.isHost()).isTrue();
+    }
+
+    @Test
+    void getPoll_hostToken없으면_isHost_false() {
+        Poll poll = Poll.create("테스트 투표", "dummyCode", "dummyToken", LocalDateTime.now().plusDays(1));
+
+        given(pollRepository.findWithOptionByShareCode(anyString()))
+                .willReturn(Optional.of(poll));
+
+        PollResponse.Detail response = pollService.getPoll("dummyCode", null, null);
+
+        assertThat(response.isHost()).isFalse();
+    }
+
+    @Test
+    void getHostPoll_정상케이스_isHost_true() {
+        Poll poll = Poll.create("테스트 투표", "dummyCode", "dummyToken",
+                LocalDateTime.now().plusDays(1));
+
+        given(pollRepository.findWithOptionByShareCode(anyString()))
+                .willReturn(Optional.of(poll));
+
+        PollResponse.Detail response = pollService.getHostPoll("dummyCode", "dummyToken");
+
+        assertThat(response.shareCode()).isEqualTo(poll.getShareCode());
+        assertThat(response.title()).isEqualTo(poll.getTitle());
+        assertThat(response.status()).isEqualTo(poll.getStatus().name());
+        assertThat(response.isHost()).isTrue();
+    }
+
+    @Test
     void validateSseConnection_존재하지않는투표_예외발생() {
         given(pollRepository.findWithOptionByShareCode(anyString()))
                 .willReturn(Optional.empty());
@@ -127,7 +191,7 @@ public class PollServiceTest {
                 .willReturn(Optional.empty());
 
         BusinessException ex = assertThrows(BusinessException.class,
-                () -> pollService.getPoll("dummyCode", null));
+                () -> pollService.getPoll("dummyCode", "dummyToken", "dummyToken"));
 
         assertThat(ex.getErrorCode()).isEqualTo(ErrorCode.POLL_NOT_FOUND);
     }
@@ -153,7 +217,7 @@ public class PollServiceTest {
         given(voteRecordRepository.countByPollIdGroupByOption(anyLong()))
                 .willReturn(List.of(new VoteRecordRepository.OptionCount(10L, 5L)));
 
-        PollResponse.Detail response = pollService.getPoll("dummyCode", null);
+        PollResponse.Detail response = pollService.getPoll("dummyCode", null, "dummyToken");
 
         assertThat(response.options().get(0).count()).isEqualTo(5L);
     }
@@ -165,7 +229,7 @@ public class PollServiceTest {
         given(pollRepository.findWithOptionByShareCode(anyString()))
                 .willReturn(Optional.of(poll));
 
-        PollResponse.Detail response = pollService.getPoll("dummyCode", null);
+        PollResponse.Detail response = pollService.getPoll("dummyCode", null, null);
 
         assertThat(response.shareCode()).isEqualTo(poll.getShareCode());
         assertThat(response.title()).isEqualTo(poll.getTitle());

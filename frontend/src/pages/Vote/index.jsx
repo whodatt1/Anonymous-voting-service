@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { useParams } from 'react-router-dom'
+import { useParams, useNavigate } from 'react-router-dom'
 import { castVote, getPoll } from '../../api/poll'
 
 export default function Vote() {
@@ -9,12 +9,17 @@ export default function Vote() {
   const [submitted, setSubmitted] = useState(false)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
+  const navigate = useNavigate()
 
   useEffect(() => {
     // TODO: api/poll.js의 getPoll 호출
     const fetch = async () => {
       try {
         const result = await getPoll(shareCode);
+        if (result.isHost) {
+          navigate(`/votes/${shareCode}/manage`, { replace: true }) // 뒤로가기로 투표페이지 돌아오는 것 방지
+          return
+        }
         setPoll(result)
         if (result.hasVoted) setSubmitted(true)
       } catch (err) {

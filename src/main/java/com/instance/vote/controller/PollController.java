@@ -1,5 +1,6 @@
 package com.instance.vote.controller;
 
+import com.instance.vote.domain.Poll;
 import com.instance.vote.dto.PollRequest;
 import com.instance.vote.dto.PollResponse;
 import com.instance.vote.service.PollService;
@@ -27,15 +28,40 @@ public class PollController {
     public ResponseEntity<PollResponse.Create> createPoll(@RequestBody @Valid PollRequest.Create request) {
         PollResponse.Create response = pollService.createPoll(request);
         URI location = URI.create("/votes/" + response.shareCode());
-        return ResponseEntity.created(location).body(response);
+
+        // 만료기간 고려하여 동적 maxAge 계산
+        long secondsUntilExpiry = ChronoUnit.SECONDS.between(LocalDateTime.now(), response.expiresAt());
+
+        ResponseCookie cookie = ResponseCookie.from("hostToken", response.hostToken())
+                .httpOnly(true)
+                .path("/votes/" + response.shareCode())
+                // Duration.ofSeconds(-1)을 넘기면 예외가 발생하므로 0으로 방어
+                .maxAge(Duration.ofSeconds(Math.max(secondsUntilExpiry, 0)))
+                .sameSite("Strict")
+                .build();
+
+        return ResponseEntity.created(location)
+                .header(HttpHeaders.SET_COOKIE, cookie.toString())
+                .body(response);
+    }
+
+    @GetMapping("/{shareCode}/host")
+    public ResponseEntity<PollResponse.Detail> getHostPoll(
+            @PathVariable String shareCode,
+            @CookieValue(name = "hostToken") String hostToken) {
+        PollResponse.Detail response = pollService.getHostPoll(shareCode, hostToken);
+
+        return ResponseEntity.ok()
+                .body(response);
     }
 
     @GetMapping("/{shareCode}")
     public ResponseEntity<PollResponse.Detail> getPoll(
             @PathVariable String shareCode,
-            @CookieValue(name = "participantToken", required = false) String exstingToken) {
+            @CookieValue(name = "participantToken", required = false) String exstingToken,
+            @CookieValue(name = "hostToken", required = false) String hostToken) {
 
-        PollResponse.Detail response = pollService.getPoll(shareCode, exstingToken);
+        PollResponse.Detail response = pollService.getPoll(shareCode, exstingToken, hostToken);
 
         if (exstingToken != null) {
             return ResponseEntity.ok(response); // 쿠키가 있다면 바로 반환
@@ -44,16 +70,18 @@ public class PollController {
         String participantToken = UUID.randomUUID().toString();
 
         // 만료기간 고려하여 동적 maxAge 계산
-        long secondsUntilExpiry = ChronoUnit.SECONDS.between(LocalDateTime.now(), response.expiresAt());
+        //long secondsUntilExpiry = ChronoUnit.SECONDS.between(LocalDateTime.now(), response.expiresAt());
 
         ResponseCookie cookie = ResponseCookie.from("participantToken", participantToken)
                 .httpOnly(true)
                 .path("/")
-                // 현재는 만료된 getPoll도 정상 반환하게 되어있다.
+                // TODO: 만료 투표 조회 시 별도 응답 처리 검토
                 // Duration.ofSeconds(-1)을 넘기면 예외가 발생하므로 0으로 방어
-                .maxAge(Duration.ofSeconds(Math.max(secondsUntilExpiry, 0)))
-                // 접속 url을 제공한다는 정책상 Lax 채택
-                // 다른 사이트(카카오톡 등)에서 링크를 타고 오는 GET요청은 허용 POST PUT 차단
+                //.maxAge(Duration.ofSeconds(Math.max(secondsUntilExpiry, 0)))
+                // 투표 수명과 무관하게 고정 - 단명 투표 먼저 방문 시 쿠키가 일찍 만료되어
+                // 재발급 토큰으로 장수 투표에 중복 투표 가능한 구조적 허점 방지
+                .maxAge(ChronoUnit.YEARS.getDuration().getSeconds() * 1)
+                // URL 공유 기반 서비스 특성상 외부 링크(카카오톡 등) GET 허용 필요
                 .sameSite("Lax")
                 .build();
 
@@ -65,7 +93,7 @@ public class PollController {
     @PatchMapping("/{shareCode}/close")
     public ResponseEntity<Void> closePoll(
             @PathVariable String shareCode,
-            @RequestParam String hostToken) {
+            @CookieValue(name = "hostToken") String hostToken) {
         pollService.closePoll(shareCode, hostToken);
         return ResponseEntity.noContent().build();
     }
