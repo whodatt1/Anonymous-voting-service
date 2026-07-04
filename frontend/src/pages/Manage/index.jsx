@@ -1,15 +1,15 @@
 import { useState, useEffect } from 'react'
 import { useParams, useSearchParams } from 'react-router-dom'
 import { getPoll, closePoll } from '../../api/poll'
+import { useSSE } from '../../hooks/useSSE'
 
 export default function Manage() {
   const { shareCode } = useParams()
   const [searchParams] = useSearchParams()
   const hostToken = searchParams.get('hostToken')
+  const { counts, connected } = useSSE(shareCode, hostToken)
 
   const [poll, setPoll] = useState(null)
-  const [counts, setCounts] = useState({})
-  const [connected, setConnected] = useState(false)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
 
@@ -27,12 +27,6 @@ export default function Manage() {
     }
     fetch()
   }, [shareCode])
-
-  useEffect(() => {
-    if (!poll) return
-    // TODO: hooks/useSSE.js 완성 후 SSE 연결 연동
-    // const { counts: liveCounts, connected: isConnected } = useSSE(shareCode, hostToken)
-  }, [poll, shareCode, hostToken])
 
   const handleClose = async () => {
     try {

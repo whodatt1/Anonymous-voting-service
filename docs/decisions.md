@@ -238,4 +238,11 @@
 ## [2026-07-03] 참여자 결과 조회 방식
 - 결정: 참여자는 SSE 없이 REST 스냅샷으로만 결과 조회. 투표 직후 `getPoll` 재호출로 최신 집계 반영
 - 배경: project.md 정책 — "결과는 항상 공개, 참여자 조회는 SSE가 아닌 REST 스냅샷으로 제공"
-- 채택 이유 / 트레이드오프: castVote 완료 후 getPoll 재조회로 Redis 실제 집계값 반영. 요청 1회 추가되나 정확성 확보. 결과 화면 전환은 `viewingResults` 상태 토글로 처리(URL 변경 없음).
+- 채택 이유 / 트레이드오프: castVote 완료 후 getPoll 재조회로 Redis 실제 집계값 반영. 요청 1회 추가되나 정확성 확보.
+- UX 흐름 확정: 결과 보기 버튼 제거. `submitted === true` 또는 `status === 'CLOSED'`이면 자동으로 결과 화면 전환. 투표 완료 후 새로고침 버튼 제공(getPoll 재호출로 최신 집계 갱신).
+
+## [2026-07-03] 재방문 시 투표 이력 확인 — 서버 기반 hasVoted 채택
+- 결정: getPoll 응답에 `hasVoted` 필드 추가. 서버가 쿠키(participantToken) 기반으로 VoteRecord 존재 여부를 직접 확인해 내려줌
+- 배경: React 상태(submitted)는 페이지를 닫으면 초기화되므로, 쿠키를 가진 채 재방문해도 투표 화면이 뜨는 문제 발생
+- 대안: localStorage에 투표 완료 여부 저장 — 백엔드 변경 없이 구현 가능하나, localStorage와 쿠키가 독립 저장소이므로 한쪽만 삭제될 경우 UI와 서버 상태 불일치 발생
+- 채택 이유 / 트레이드오프: 서버가 진실의 원천(source of truth)이 되어야 불일치 문제가 구조적으로 해결됨. VoteRecordRepository에 `existsByPoll_IdAndParticipantToken` 추가, PollResponse.Detail에 `hasVoted` 필드 추가로 구현 범위는 좁음. 프론트는 초기 로드 시 `hasVoted === true`이면 바로 결과 화면 진입.

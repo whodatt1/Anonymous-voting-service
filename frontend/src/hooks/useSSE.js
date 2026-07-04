@@ -10,6 +10,24 @@ export function useSSE(shareCode, hostToken) {
 
   useEffect(() => {
     // TODO: EventSource 연결 구현
+    // 1. EventSource 생성
+    const eventSource = new EventSource(`/votes/${shareCode}/stream?hostToken=${hostToken}`)
+
+    // 2. 세가지 핸들러 등록
+    eventSource.onopen = () => { setConnected(true) }
+
+    eventSource.onmessage = (event) => {
+      const options = JSON.parse(event.data)
+      const newCounts = options.reduce((acc, option) => {
+        return { ...acc, [option.optionId]: option.count}
+      }, {})
+      setCounts(newCounts)
+    }
+
+    eventSource.onerror = () => { setConnected(false) }
+
+    // cleanup 함수 (다른 페이지로 이동 시)
+    return () => eventSource.close() // UseEffect의 return이 cleanup
   }, [shareCode, hostToken])
 
   return { counts, connected }
