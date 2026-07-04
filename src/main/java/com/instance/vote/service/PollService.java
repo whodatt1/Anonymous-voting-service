@@ -57,11 +57,11 @@ public class PollService {
     }
 
     @Transactional(readOnly = true)
-    public PollResponse.Detail getPoll(String shareCode) {
+    public PollResponse.Detail getPoll(String shareCode, String participantToken) {
         Poll poll = pollRepository.findWithOptionByShareCode(shareCode)
                 .orElseThrow(() -> new BusinessException(ErrorCode.POLL_NOT_FOUND));
 
-        return toDetail(poll);
+        return toDetail(poll, participantToken);
     }
 
     public void closePoll(String shareCode, String hostToken) {
@@ -103,11 +103,11 @@ public class PollService {
             throw new BusinessException(ErrorCode.POLL_EXPIRED);
         }
 
-        return toDetail(poll);
+        return toDetail(poll, null);
     }
 
     // 중복되는 코드 private 메서드로 분리
-    private PollResponse.Detail toDetail(Poll poll) {
+    private PollResponse.Detail toDetail(Poll poll, String participantToken) {
         // 람다 안에서 외부 변수를 쓰려면 해당 변수가 한번만 할당되어야 함 별도 private 메서드로 추출하여 한번만 할당
         Map<Long, Long> counts = resolveVoteCounts(poll.getId(), poll.getOptions());
 
@@ -115,13 +115,17 @@ public class PollService {
                 .map(vo -> new PollResponse.OptionDetail(vo.getId(), vo.getContent(), counts.getOrDefault(vo.getId(), 0L)))
                 .toList();
 
+        boolean hasVoted = participantToken != null &&
+                voteRecordRepository.existsByPoll_IdAndParticipantToken(poll.getId(), participantToken);
+
         return new PollResponse.Detail(
                 poll.getId(),
                 poll.getShareCode(),
                 poll.getTitle(),
                 poll.getStatus().name(),
                 poll.getExpiresAt(),
-                options
+                options,
+                hasVoted
         );
     }
 

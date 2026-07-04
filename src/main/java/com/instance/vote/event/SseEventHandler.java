@@ -16,7 +16,7 @@ public class SseEventHandler {
 
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     public void handleVoteCast(VoteCastEvent event) {
-        PollResponse.Detail detail = pollService.getPoll(event.shareCode());
+        PollResponse.Detail detail = pollService.getPoll(event.shareCode(), null);
         sseEmitterManager.broadcast(event.pollId(), detail.options());
     }
 }

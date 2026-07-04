@@ -35,7 +35,7 @@ public class PollController {
             @PathVariable String shareCode,
             @CookieValue(name = "participantToken", required = false) String exstingToken) {
 
-        PollResponse.Detail response = pollService.getPoll(shareCode);
+        PollResponse.Detail response = pollService.getPoll(shareCode, exstingToken);
 
         if (exstingToken != null) {
             return ResponseEntity.ok(response); // 쿠키가 있다면 바로 반환

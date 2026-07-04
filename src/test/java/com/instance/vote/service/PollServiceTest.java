@@ -127,7 +127,7 @@ public class PollServiceTest {
                 .willReturn(Optional.empty());
 
         BusinessException ex = assertThrows(BusinessException.class,
-                () -> pollService.getPoll("dummyCode"));
+                () -> pollService.getPoll("dummyCode", null));
 
         assertThat(ex.getErrorCode()).isEqualTo(ErrorCode.POLL_NOT_FOUND);
     }
@@ -153,7 +153,7 @@ public class PollServiceTest {
         given(voteRecordRepository.countByPollIdGroupByOption(anyLong()))
                 .willReturn(List.of(new VoteRecordRepository.OptionCount(10L, 5L)));
 
-        PollResponse.Detail response = pollService.getPoll("dummyCode");
+        PollResponse.Detail response = pollService.getPoll("dummyCode", null);
 
         assertThat(response.options().get(0).count()).isEqualTo(5L);
     }
@@ -165,7 +165,7 @@ public class PollServiceTest {
         given(pollRepository.findWithOptionByShareCode(anyString()))
                 .willReturn(Optional.of(poll));
 
-        PollResponse.Detail response = pollService.getPoll("dummyCode");
+        PollResponse.Detail response = pollService.getPoll("dummyCode", null);
 
         assertThat(response.shareCode()).isEqualTo(poll.getShareCode());
         assertThat(response.title()).isEqualTo(poll.getTitle());

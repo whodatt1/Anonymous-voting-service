@@ -20,7 +20,8 @@ public class PollResponse {
         String title,
         String status,
         LocalDateTime expiresAt,
-        List<OptionDetail> options
+        List<OptionDetail> options,
+        boolean hasVoted
     ) {}
 
     public record OptionDetail(

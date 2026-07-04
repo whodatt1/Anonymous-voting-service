@@ -15,4 +15,7 @@ public interface VoteRecordRepository extends JpaRepository<VoteRecord, Long> {
             "(v.option.id, COUNT(v)) " +
             "FROM VoteRecord v WHERE v.poll.id = :pollId GROUP BY v.option.id")
     List<OptionCount> countByPollIdGroupByOption(@Param("pollId") Long pollId);
+
+    // 토큰 투표 여부 확인을 위하여 추가
+    boolean existsByPoll_IdAndParticipantToken(Long pollId, String participantToken);
 }
