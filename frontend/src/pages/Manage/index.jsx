@@ -1,23 +1,21 @@
 import { useState, useEffect } from 'react'
-import { useParams, useSearchParams } from 'react-router-dom'
-import { getPoll, closePoll } from '../../api/poll'
+import { useParams } from 'react-router-dom'
+import { getHostPoll, closePoll } from '../../api/poll'
 import { useSSE } from '../../hooks/useSSE'
 
 export default function Manage() {
   const { shareCode } = useParams()
-  const [searchParams] = useSearchParams()
-  const hostToken = searchParams.get('hostToken')
-  const { counts, connected } = useSSE(shareCode, hostToken)
+  const { counts, connected } = useSSE(shareCode)
 
   const [poll, setPoll] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
 
   useEffect(() => {
-    // TODO: api/poll.js의 getPoll 호출 후 setPoll
+    // TODO: api/poll.js의 getHostPoll 호출 후 setPoll
     const fetch = async () => {
       try {
-        const result = await getPoll(shareCode);
+        const result = await getHostPoll(shareCode);
         setPoll(result)
       } catch (err) {
         setError(err.message)
@@ -31,7 +29,7 @@ export default function Manage() {
   const handleClose = async () => {
     try {
       // TODO: api/poll.js의 closePoll 호출
-      const result = await closePoll(shareCode, hostToken)
+      const result = await closePoll(shareCode)
       setPoll(prev => ({ ...prev, status: 'CLOSED' }))
     } catch (err) {
       setError(err.message)

@@ -24,7 +24,7 @@ public class SseController {
     @GetMapping(value = "/{shareCode}/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     public ResponseEntity<SseEmitter> stream(
             @PathVariable String shareCode,
-            @RequestParam String hostToken) {
+            @CookieValue(name = "hostToken") String hostToken) {
         PollResponse.Detail detail = pollService.validateSseConnection(shareCode, hostToken);
 
         long timeout = Duration.between(LocalDateTime.now(), detail.expiresAt()).toMillis();

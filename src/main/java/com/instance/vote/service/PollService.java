@@ -52,16 +52,30 @@ public class PollService {
 
         return new PollResponse.Create(
                 poll.getShareCode(),
-                poll.getHostToken()
+                poll.getHostToken(),
+                poll.getExpiresAt()
         );
     }
 
     @Transactional(readOnly = true)
-    public PollResponse.Detail getPoll(String shareCode, String participantToken) {
+    public PollResponse.Detail getHostPoll(String shareCode, String hostToken) {
         Poll poll = pollRepository.findWithOptionByShareCode(shareCode)
                 .orElseThrow(() -> new BusinessException(ErrorCode.POLL_NOT_FOUND));
 
-        return toDetail(poll, participantToken);
+        // 호스트 토큰 검증
+        if (!hostToken.equals(poll.getHostToken())) {
+            throw new BusinessException(ErrorCode.UNAUTHORIZE_HOST);
+        }
+
+        return toDetail(poll, null, hostToken);
+    }
+
+    @Transactional(readOnly = true)
+    public PollResponse.Detail getPoll(String shareCode, String participantToken, String hostToken) {
+        Poll poll = pollRepository.findWithOptionByShareCode(shareCode)
+                .orElseThrow(() -> new BusinessException(ErrorCode.POLL_NOT_FOUND));
+
+        return toDetail(poll, participantToken, hostToken);
     }
 
     public void closePoll(String shareCode, String hostToken) {
@@ -103,11 +117,11 @@ public class PollService {
             throw new BusinessException(ErrorCode.POLL_EXPIRED);
         }
 
-        return toDetail(poll, null);
+        return toDetail(poll, null, hostToken);
     }
 
     // 중복되는 코드 private 메서드로 분리
-    private PollResponse.Detail toDetail(Poll poll, String participantToken) {
+    private PollResponse.Detail toDetail(Poll poll, String participantToken, String hostToken) {
         // 람다 안에서 외부 변수를 쓰려면 해당 변수가 한번만 할당되어야 함 별도 private 메서드로 추출하여 한번만 할당
         Map<Long, Long> counts = resolveVoteCounts(poll.getId(), poll.getOptions());
 
@@ -118,6 +132,9 @@ public class PollService {
         boolean hasVoted = participantToken != null &&
                 voteRecordRepository.existsByPoll_IdAndParticipantToken(poll.getId(), participantToken);
 
+        boolean isHost = hostToken != null &&
+                hostToken.equals(poll.getHostToken());
+
         return new PollResponse.Detail(
                 poll.getId(),
                 poll.getShareCode(),
@@ -125,7 +142,8 @@ public class PollService {
                 poll.getStatus().name(),
                 poll.getExpiresAt(),
                 options,
-                hasVoted
+                hasVoted,
+                isHost
         );
     }
 

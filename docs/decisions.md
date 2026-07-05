@@ -246,3 +246,22 @@
 - 배경: React 상태(submitted)는 페이지를 닫으면 초기화되므로, 쿠키를 가진 채 재방문해도 투표 화면이 뜨는 문제 발생
 - 대안: localStorage에 투표 완료 여부 저장 — 백엔드 변경 없이 구현 가능하나, localStorage와 쿠키가 독립 저장소이므로 한쪽만 삭제될 경우 UI와 서버 상태 불일치 발생
 - 채택 이유 / 트레이드오프: 서버가 진실의 원천(source of truth)이 되어야 불일치 문제가 구조적으로 해결됨. VoteRecordRepository에 `existsByPoll_IdAndParticipantToken` 추가, PollResponse.Detail에 `hasVoted` 필드 추가로 구현 범위는 좁음. 프론트는 초기 로드 시 `hasVoted === true`이면 바로 결과 화면 진입.
+
+## [2026-07-04] participantToken MaxAge — 365일 고정
+- 결정: participantToken 쿠키 MaxAge를 투표 expiresAt 기준 동적 계산에서 365일 고정으로 변경
+- 배경: 단명 투표(예: 1시간) 먼저 방문 시 토큰이 1시간 후 만료 → 재발급 토큰으로 장수 투표에 중복 투표 가능한 구조적 허점 발견
+- 대안: 동적 maxAge(투표 만료 시각 기준) — 투표 수명과 쿠키 수명이 일치하나 다른 투표에서 재발급 허점 존재
+- 채택 이유 / 트레이드오프: 토큰 역할이 "사용자 식별"이므로 특정 투표 수명과 무관하게 장기 유지가 맞음. 쿠키 직접 삭제로 인한 중복 투표는 익명 시스템의 구조적 한계로 수용.
+
+## [2026-07-04] 호스트 전용 엔드포인트 분리
+- 결정: Manage 페이지 전용 GET /votes/{shareCode}/host 엔드포인트 추가. PollResponse.Detail에 isHost 필드 추가. Vote 페이지에서 isHost===true이면 Manage 페이지로 자동 리다이렉트.
+- 배경: 기존 GET /votes/{shareCode} 호출 시 호스트에게도 participantToken이 불필요하게 발급됨. 또한 호스트가 공유 링크로 진입하면 투표 화면이 뜨는 UX 혼동 발생.
+- 대안: 기존 단일 엔드포인트에서 hostToken 쿠키 존재 여부로 isHost 판단 — 엔드포인트는 유지되나 participantToken 발급 조건부 처리 복잡도 증가
+- 채택 이유 / 트레이드오프: 엔드포인트 분리로 호스트/참여자 역할을 명확히 구분. 호스트는 participantToken 발급 없이 hostToken 쿠키만으로 접근. Vote 페이지에서 isHost 기반 리다이렉트로 잘못된 페이지 노출 방지. 단, GET /votes/{shareCode}도 isHost 계산을 위해 hostToken 쿠키를 선택적으로 읽는 로직이 남음.
+
+## [2026-07-04] hostToken 관리 방식 — URL 쿼리 파라미터 → HttpOnly 쿠키 전환
+- 결정: hostToken을 URL 쿼리 파라미터에서 HttpOnly 쿠키로 변경
+- 배경: 화면 공유 시 관리 URL이 노출되면 누구든 hostToken을 획득해 투표 강제 종료(closePoll) 가능한 구조적 취약점 존재
+- 대안: SSE 동시 연결 수 제한 — 플러딩은 막으나 closePoll 무단 호출은 여전히 가능
+- 채택 이유 / 트레이드오프: URL에 토큰이 없으므로 노출되어도 쿠키 없는 브라우저는 서버에서 인증 거부. 단, 투표를 생성한 기기 외 다른 기기에서 관리 불가(기기 종속). 1인 운영 시나리오에서는 수용 가능한 트레이드오프로 판단.
+- 구현 변경 범위: POST /votes 응답에 Set-Cookie(hostToken, HttpOnly, Path=/votes/{shareCode}/), closePoll·SSE stream에서 @RequestParam → @CookieValue 변경, PollResponse.Create에서 hostToken 필드 제거, 프론트 관리 URL에서 ?hostToken=... 제거
