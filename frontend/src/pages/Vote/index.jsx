@@ -116,11 +116,15 @@ function VoteView({ options, selected, onSelect, onSubmit }) {
 
 function ResultView({ options, total, submitted, onRefresh }) {
   const [refreshing, setRefreshing] = useState(false)
+  const [refreshError, setRefreshError] = useState(null)
 
   const handleRefresh = async () => {
     setRefreshing(true)
+    setRefreshError(null) // 재시도 시 에러 초기화
     try {
       await onRefresh()
+    } catch (err) {
+      setRefreshError(err.message)
     } finally {
       setRefreshing(false)
     }
@@ -156,6 +160,9 @@ function ResultView({ options, total, submitted, onRefresh }) {
         >
           {refreshing ? '새로고침 중...' : '↻ 새로고침'}
         </button>
+      )}
+      {refreshError && (
+        <p className="text-center text-red-400 text-sm">{refreshError}</p>
       )}
     </div>
   )

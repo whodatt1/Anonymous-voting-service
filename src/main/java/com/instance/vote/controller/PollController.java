@@ -1,5 +1,6 @@
 package com.instance.vote.controller;
 
+import com.instance.vote.annotation.RateLimit;
 import com.instance.vote.domain.Poll;
 import com.instance.vote.dto.PollRequest;
 import com.instance.vote.dto.PollResponse;
@@ -55,6 +56,7 @@ public class PollController {
                 .body(response);
     }
 
+    @RateLimit(limit = 30, windowSeconds = 60)
     @GetMapping("/{shareCode}")
     public ResponseEntity<PollResponse.Detail> getPoll(
             @PathVariable String shareCode,

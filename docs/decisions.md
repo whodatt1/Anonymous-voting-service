@@ -259,6 +259,16 @@
 - 대안: 기존 단일 엔드포인트에서 hostToken 쿠키 존재 여부로 isHost 판단 — 엔드포인트는 유지되나 participantToken 발급 조건부 처리 복잡도 증가
 - 채택 이유 / 트레이드오프: 엔드포인트 분리로 호스트/참여자 역할을 명확히 구분. 호스트는 participantToken 발급 없이 hostToken 쿠키만으로 접근. Vote 페이지에서 isHost 기반 리다이렉트로 잘못된 페이지 노출 방지. 단, GET /votes/{shareCode}도 isHost 계산을 위해 hostToken 쿠키를 선택적으로 읽는 로직이 남음.
 
+## [2026-07-05] Rate Limiting 설계 — Bucket4j + LettuceBasedProxyManager, GET /votes/{shareCode}만 적용
+- 결정: Bucket4j + LettuceBasedProxyManager 기반 Rate Limiting을 GET /votes/{shareCode}(분당 30회, participantToken 키)에만 적용. AOP + @RateLimit 커스텀 애노테이션으로 Controller 메서드 단위 선언적 적용.
+- 배경: 참여자 새로고침 반복에 대한 방어선이 없는 상태. IP 기반 식별은 개인정보보호법 이슈 및 NAT 환경 오탐 위험 존재.
+- 대안: Redisson(기존 Lettuce와 Redis 클라이언트 이중화), Redis INCR 직접 구현(고정 윈도우 경계 문제), Filter(GlobalExceptionHandler 미경유), HandlerInterceptor(엔드포인트별 수치 변경 시 WebMvcConfig 분기 복잡도)
+- 채택 이유 / 트레이드오프: Bucket4j 토큰 버킷 알고리즘으로 윈도우 경계 문제 없음. LettuceBasedProxyManager로 기존 Redis 클라이언트 재사용. @RateLimit 애노테이션으로 메서드 선언부에서 직접 관리. participantToken(365일)을 키로 사용해 IP 수집 없이 식별.
+- castVote 제외 근거: 쿠키 있는 정상 케이스는 Redis SETNX + DB UNIQUE가 이미 처리. 쿠키 삭제 후 재시도 시 새 토큰 발급으로 Rate Limiting도 함께 우회되므로 실질적 방어 효과 없음 — 기존 방어선과 완전히 겹치거나 못 막는 케이스만 남음.
+- POST /votes 제외 근거: 발급된 토큰이 없는 유일한 엔드포인트. IP 사용 회피 방침상 제외. 스팸 피해(유령 데이터 누적)는 만료 데이터 정리 이슈에서 별도 처리.
+- 리필 전략 — refillGreedy 채택: refillIntervally(윈도우 종료 시 전체 리셋)는 경계 구간에서 2배 허용 문제 발생. refillGreedy는 0.5개/초로 지속 충전되어 어느 구간에서도 순간 폭발 불가. 토큰 버킷 알고리즘의 본래 동작.
+- TTL 버퍼 10초 근거: basedOnTimeForRefillingBucketUpToMax가 버킷 리필 완료 시간을 TTL로 계산하는데, 앱·Redis 서버 간 클럭 스큐(시계 오차)로 키가 리필 완료 전에 조기 삭제되면 새 버킷이 생성되어 Rate Limiting이 우회될 수 있음. 10초는 이 오차를 흡수하는 안전 마진이며 Rate Limiting 동작 자체에는 영향 없음.
+
 ## [2026-07-04] hostToken 관리 방식 — URL 쿼리 파라미터 → HttpOnly 쿠키 전환
 - 결정: hostToken을 URL 쿼리 파라미터에서 HttpOnly 쿠키로 변경
 - 배경: 화면 공유 시 관리 URL이 노출되면 누구든 hostToken을 획득해 투표 강제 종료(closePoll) 가능한 구조적 취약점 존재
