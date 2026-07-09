@@ -8,6 +8,7 @@ import com.instance.vote.dto.PollResponse;
 import com.instance.vote.event.SseEmitterManager;
 import com.instance.vote.exception.BusinessException;
 import com.instance.vote.exception.ErrorCode;
+import com.instance.vote.port.out.VoteCountReadPort;
 import com.instance.vote.repository.PollRepository;
 import com.instance.vote.repository.VoteOptionRepository;
 import com.instance.vote.repository.VoteRecordRepository;
@@ -34,11 +35,12 @@ import static org.mockito.Mockito.verify;
 @ExtendWith(MockitoExtension.class)
 public class PollServiceTest {
 
-    @Mock
-    StringRedisTemplate stringRedisTemplate;
+    // 헥사고날 아키텍처 패턴으로 바꾸며 주석처리
+    //@Mock
+    //StringRedisTemplate stringRedisTemplate;
 
-    @Mock
-    ValueOperations<String, String> valueOperations;
+    //@Mock
+    //ValueOperations<String, String> valueOperations;
 
     @Mock
     VoteRecordRepository voteRecordRepository;
@@ -54,6 +56,10 @@ public class PollServiceTest {
 
     @InjectMocks
     PollService pollService; // 위 Mock들이 주입된 진짜 Service
+
+    // Port
+    @Mock
+    VoteCountReadPort voteCountReadPort;
 
     @Test
     void getHostPoll_존재하지않는투표_예외발생() {
@@ -210,8 +216,11 @@ public class PollServiceTest {
         given(pollRepository.findWithOptionByShareCode(anyString()))
                 .willReturn(Optional.of(poll));
 
-        // Redis가 예외를 던지도록 설정 -> DB 폴백 트리거
-        given(stringRedisTemplate.opsForValue())
+        // Redis가 예외를 던지도록 설정 -> DB 폴백 트리거 -> 헥사고날 아키텍처 패턴으로 바꾸며 주석처리
+        //given(stringRedisTemplate.opsForValue())
+        //        .willThrow(new RuntimeException("Redis 연결 실패"));
+
+        given(voteCountReadPort.getCounts(anyLong(), anyList()))
                 .willThrow(new RuntimeException("Redis 연결 실패"));
 
         given(voteRecordRepository.countByPollIdGroupByOption(anyLong()))

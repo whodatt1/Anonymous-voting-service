@@ -5,6 +5,8 @@ import com.instance.vote.domain.VoteOption;
 import com.instance.vote.dto.VoteRequest;
 import com.instance.vote.exception.BusinessException;
 import com.instance.vote.exception.ErrorCode;
+import com.instance.vote.port.out.DuplicateVoteCheckPort;
+import com.instance.vote.port.out.VoteCountPort;
 import com.instance.vote.repository.PollRepository;
 import com.instance.vote.repository.VoteOptionRepository;
 import com.instance.vote.repository.VoteRecordRepository;
@@ -16,8 +18,6 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.dao.DataIntegrityViolationException;
-import org.springframework.data.redis.core.StringRedisTemplate;
-import org.springframework.data.redis.core.ValueOperations;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.time.LocalDateTime;
@@ -45,12 +45,20 @@ public class VoteServiceTest {
     @Mock
     VoteRecordRepository voteRecordRepository;
 
-    @Mock
-    StringRedisTemplate stringRedisTemplate;
+    // 헥사고날 아키텍처 패턴으로 바꾸며 주석처리
+    //@Mock
+    //StringRedisTemplate stringRedisTemplate;
 
     // opsForValue() 시 ValueOperation을 리턴 StringRedisTemplate과 체이닝을 위해
+    //@Mock
+    //ValueOperations<String, String> valueOperations;
+
+    // Port
     @Mock
-    ValueOperations<String, String> valueOperations;
+    DuplicateVoteCheckPort duplicateVoteCheckPort;
+
+    @Mock
+    VoteCountPort voteCountPort;
 
     @InjectMocks
     VoteService voteService;
@@ -153,13 +161,16 @@ public class VoteServiceTest {
         given(voteOptionRepository.findById(any()))
                 .willReturn(Optional.of(voteOption));
 
+        // 헥사고날 아키텍처 패턴으로 바꾸며 주석처리
         // opsForValue()가 valueOperations를 반환하도록 먼저 설정
-        given(stringRedisTemplate.opsForValue())
-                .willReturn(valueOperations);
+        //given(stringRedisTemplate.opsForValue())
+        //        .willReturn(valueOperations);
 
         // setIfAbsent가 false를 반환 -> 이미 투표한 사람
-        given(valueOperations.setIfAbsent(anyString(), anyString(), anyLong(), any()))
-                .willReturn(false);
+        //given(valueOperations.setIfAbsent(anyString(), anyString(), anyLong(), any()))
+        //        .willReturn(false);
+
+        given(duplicateVoteCheckPort.isFirstVote(anyLong(), anyString(), anyLong())).willReturn(false);
 
         BusinessException ex = assertThrows(BusinessException.class,
                 () -> voteService.castVote("dummyCode", new VoteRequest.Cast(10L, "dummyToken")));
@@ -175,11 +186,14 @@ public class VoteServiceTest {
         given(voteOptionRepository.findById(any()))
                 .willReturn(Optional.of(voteOption));
 
-        given(stringRedisTemplate.opsForValue())
-                .willReturn(valueOperations);
+        // 헥사고날 아키텍처 패턴으로 바꾸며 주석처리
+        //given(stringRedisTemplate.opsForValue())
+        //        .willReturn(valueOperations);
 
-        given(valueOperations.setIfAbsent(anyString(), anyString(), anyLong(), any()))
-                .willReturn(true);
+        //given(valueOperations.setIfAbsent(anyString(), anyString(), anyLong(), any()))
+        //        .willReturn(true);
+
+        given(duplicateVoteCheckPort.isFirstVote(anyLong(), anyString(), anyLong())).willReturn(true);
 
         given(voteRecordRepository.save(any()))
                 .willThrow(new DataIntegrityViolationException("duplicate"));
@@ -198,17 +212,20 @@ public class VoteServiceTest {
         given(voteOptionRepository.findById(any()))
                 .willReturn(Optional.of(voteOption));
 
-        given(stringRedisTemplate.opsForValue())
-                .willReturn(valueOperations);
+        // 헥사고날 아키텍처 패턴으로 바꾸며 주석처리
+        //given(stringRedisTemplate.opsForValue())
+        //        .willReturn(valueOperations);
 
-        given(valueOperations.setIfAbsent(anyString(), anyString(), anyLong(), any()))
-                .willReturn(true);
+        //given(valueOperations.setIfAbsent(anyString(), anyString(), anyLong(), any()))
+        //        .willReturn(true);
+
+        given(duplicateVoteCheckPort.isFirstVote(anyLong(), anyString(), anyLong())).willReturn(true);
 
         assertDoesNotThrow(
                 () -> voteService.castVote("dummyCode", new VoteRequest.Cast(10L, "dummyToken")));
 
         verify(voteRecordRepository).save(any());
-        verify(valueOperations).increment(anyString());
+        verify(voteCountPort).increment(anyLong(), anyLong());
     }
 
 }
