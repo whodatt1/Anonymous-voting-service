@@ -210,7 +210,7 @@
 - 결정: 단위 테스트는 Mockito, 통합 테스트는 Testcontainers(MySQL 8.0 + Redis 7) 채택
 - 배경: PollService·VoteService가 JPA Repository + RedisTemplate을 동시에 의존하는 Phase 0 구조에서 각 레이어의 테스트 방식 결정 필요
 - 채택 이유 / 트레이드오프:
-  - 단위 테스트: Mockito로 모든 의존성 대체. JPA 없이 실행되므로 @OneToMany 관계가 populate되지 않음 → `ReflectionTestUtils.setField(poll, "options", List.of(option))`로 강제 주입 필요. 이 불편함 자체가 Phase 0 레이어드 아키텍처 강결합 체감 실험의 일부.
+  - 단위 테스트: Mockito로 모든 의존성 대체. VoteService가 StringRedisTemplate(Spring 구현 클래스)을 직접 의존하므로 Mock 객체가 StringRedisTemplate + ValueOperations 두 개 필요하고, opsForValue() → setIfAbsent() 체이닝 stubbing이 테스트마다 반복됨. 이것이 레이어드 아키텍처 강결합의 실제 불편함이며 헥사고날 비교 실험의 핵심 관찰 대상.
   - 통합 테스트: Testcontainers로 MySQL/Redis Docker 컨테이너 기동. @ServiceConnection으로 컨테이너 접속 정보 자동 주입. application-local.yaml은 spring-dotenv 환경 변수를 사용하므로 테스트 전용 application-test.yaml 별도 생성 + @ActiveProfiles("test") 적용. ddl-auto: create-drop으로 테스트 완료 시 스키마 자동 삭제.
 - 동시성 테스트 패턴: CountDownLatch(startLatch=1 동시 출발, doneLatch=N 완료 대기) + ExecutorService.newFixedThreadPool(N) + AtomicInteger 성공/실패 카운팅
 
@@ -275,3 +275,12 @@
 - 대안: SSE 동시 연결 수 제한 — 플러딩은 막으나 closePoll 무단 호출은 여전히 가능
 - 채택 이유 / 트레이드오프: URL에 토큰이 없으므로 노출되어도 쿠키 없는 브라우저는 서버에서 인증 거부. 단, 투표를 생성한 기기 외 다른 기기에서 관리 불가(기기 종속). 1인 운영 시나리오에서는 수용 가능한 트레이드오프로 판단.
 - 구현 변경 범위: POST /votes 응답에 Set-Cookie(hostToken, HttpOnly, Path=/votes/{shareCode}/), closePoll·SSE stream에서 @RequestParam → @CookieValue 변경, PollResponse.Create에서 hostToken 필드 제거, 프론트 관리 URL에서 ?hostToken=... 제거
+
+## [2026-07-09] 헥사고날 아키텍처 비교 실험 결과 — Phase 1 적용 확정
+- 결정: 헥사고날 아키텍처(포트/어댑터 패턴) Phase 1 적용 확정
+- 배경: Phase 0 레이어드 구조에서 VoteService가 StringRedisTemplate을 직접 의존해 단위 테스트 시 Spring 내부 API 파악 + 체이닝 stubbing 부담 발생
+- 실험 결과: B안(헥사고날)에서 포트 인터페이스 Mock 하나로 Spring 내부 API 지식 없이 단순한 stubbing 가능 — 차이가 유의미하다고 판단
+- 트레이드오프: 포트/어댑터 클래스 추가 비용 발생. JPA 엔티티와 도메인 객체 미분리로 ReflectionTestUtils는 두 안 모두 동일하게 존재 — 도메인/JPA 엔티티 분리 시 해결 가능하나 현재는 미고려 사항.
+- 패키지 구조: port/out/ + adapter/out/redis/ 만 추가하는 절충형 적용. controller/service/repository는 그대로 유지. 완전한 헥사고날(adapter/in/web/ 등 전체 이동)은 비교 실험 범위를 벗어나고 Phase 2 멀티모듈 분리 시점에 자연스럽게 재정리될 예정.
+- 적용 범위: 단일 모듈 유지, Gradle 멀티모듈 미적용 (Phase 2 프로세스 분리 시점에만 의미)
+- 구현 완료: VoteService(DuplicateVoteCheckPort, VoteCountPort), PollService(VoteCountReadPort) 포트 분리 및 Redis 어댑터 구현 완료

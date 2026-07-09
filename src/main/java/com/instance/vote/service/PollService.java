@@ -8,12 +8,12 @@ import com.instance.vote.dto.PollResponse;
 import com.instance.vote.event.SseEmitterManager;
 import com.instance.vote.exception.BusinessException;
 import com.instance.vote.exception.ErrorCode;
+import com.instance.vote.port.out.VoteCountReadPort;
 import com.instance.vote.repository.PollRepository;
 import com.instance.vote.repository.VoteOptionRepository;
 import com.instance.vote.repository.VoteRecordRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -33,8 +33,12 @@ public class PollService {
     private final SseEmitterManager sseEmitterManager;
     private final PollRepository pollRepository;
     private final VoteOptionRepository voteOptionRepository;
-    private final StringRedisTemplate stringRedisTemplate;
+    // 포트 호출로 변경
+    //private final StringRedisTemplate stringRedisTemplate;
     private final VoteRecordRepository voteRecordRepository;
+
+    // Port
+    private final VoteCountReadPort voteCountReadPort;
 
     public PollResponse.Create createPoll(PollRequest.Create request) {
 
@@ -149,25 +153,29 @@ public class PollService {
 
     private Map<Long, Long> resolveVoteCounts(Long pollId, List<VoteOption> options) {
         try {
-            return getCountsFromRedis(pollId, options);
+            // 포트 호출로 변경
+            //return getCountsFromRedis(pollId, options);
+            List<Long> optionIds = options.stream().map(VoteOption::getId).toList();
+            return voteCountReadPort.getCounts(pollId, optionIds);
         } catch (Exception e) {
             log.warn("Redis 조회 실패, DB 폴백", e);
             return getCountsFromDb(pollId);
         }
     }
 
-    // Redis에서 옵션별 득표 수 추출
-    private Map<Long, Long> getCountsFromRedis(Long pollId, List<VoteOption> options) {
-        return options.stream()
-                .collect(Collectors.toMap(
-                        VoteOption::getId, // key : optionId
-                        option -> { // value : Redis에서 꺼낸 count
-                            String key = "vote:count:" + pollId + ":" + option.getId();
-                            String value = stringRedisTemplate.opsForValue().get(key);
-                            return value != null ? Long.parseLong(value) : 0L;
-                        }
-                ));
-    }
+    // Redis에서 옵션별 득표 수 추출 -> 포트 호출로 변경
+//    private Map<Long, Long> getCountsFromRedis(Long pollId, List<VoteOption> options) {
+//        return options.stream()
+//                .collect(
+//                        Collectors.toMap(
+//                        VoteOption::getId, // key : optionId
+//                        option -> { // value : Redis에서 꺼낸 count
+//                            String key = "vote:count:" + pollId + ":" + option.getId();
+//                            String value = stringRedisTemplate.opsForValue().get(key);
+//                            return value != null ? Long.parseLong(value) : 0L;
+//                        }
+//                ));
+//    }
 
     private Map<Long, Long> getCountsFromDb(Long pollId) {
         return voteRecordRepository.countByPollIdGroupByOption(pollId).stream()
