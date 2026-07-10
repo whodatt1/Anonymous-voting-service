@@ -3,6 +3,7 @@ package com.instance.vote.service;
 import com.instance.vote.domain.Poll;
 import com.instance.vote.domain.VoteOption;
 import com.instance.vote.dto.VoteRequest;
+import com.instance.vote.event.VoteCastEvent;
 import com.instance.vote.exception.BusinessException;
 import com.instance.vote.exception.ErrorCode;
 import com.instance.vote.port.out.DuplicateVoteCheckPort;
@@ -90,31 +91,32 @@ public class VoteServiceTest {
         assertThat(ex.getErrorCode()).isEqualTo(ErrorCode.POLL_NOT_FOUND);
     }
 
-    @Test
-    void castVote_이미종료된투표_예외발생() {
-        openPoll.close();
-
-        given(pollRepository.findByShareCode(anyString()))
-                .willReturn(Optional.of(openPoll));
-
-        BusinessException ex = assertThrows(BusinessException.class,
-                () -> voteService.castVote("dummyCode", new VoteRequest.Cast(1L, "dummyToken")));
-
-        assertThat(ex.getErrorCode()).isEqualTo(ErrorCode.POLL_ALREADY_CLOSED);
-    }
-
-    @Test
-    void castVote_만료된투표_예외발생() {
-        ReflectionTestUtils.setField(openPoll, "expiresAt", LocalDateTime.now().minusSeconds(1));
-
-        given(pollRepository.findByShareCode(anyString()))
-                .willReturn(Optional.of(openPoll));
-
-        BusinessException ex = assertThrows(BusinessException.class,
-                () -> voteService.castVote("dummyCode", new VoteRequest.Cast(1L, "dummyToken")));
-
-        assertThat(ex.getErrorCode()).isEqualTo(ErrorCode.POLL_EXPIRED);
-    }
+    // DDD(Rich Entity) 전환으로 PollTest에서 검증 — 서비스 레벨 중복 제거
+//    @Test
+//    void castVote_이미종료된투표_예외발생() {
+//        openPoll.close();
+//
+//        given(pollRepository.findByShareCode(anyString()))
+//                .willReturn(Optional.of(openPoll));
+//
+//        BusinessException ex = assertThrows(BusinessException.class,
+//                () -> voteService.castVote("dummyCode", new VoteRequest.Cast(1L, "dummyToken")));
+//
+//        assertThat(ex.getErrorCode()).isEqualTo(ErrorCode.POLL_ALREADY_CLOSED);
+//    }
+//
+//    @Test
+//    void castVote_만료된투표_예외발생() {
+//        ReflectionTestUtils.setField(openPoll, "expiresAt", LocalDateTime.now().minusSeconds(1));
+//
+//        given(pollRepository.findByShareCode(anyString()))
+//                .willReturn(Optional.of(openPoll));
+//
+//        BusinessException ex = assertThrows(BusinessException.class,
+//                () -> voteService.castVote("dummyCode", new VoteRequest.Cast(1L, "dummyToken")));
+//
+//        assertThat(ex.getErrorCode()).isEqualTo(ErrorCode.POLL_EXPIRED);
+//    }
 
     @Test
     void castVote_존재하지않는옵션_예외발생() {
@@ -130,28 +132,27 @@ public class VoteServiceTest {
         assertThat(ex.getErrorCode()).isEqualTo(ErrorCode.OPTION_NOT_FOUND);
     }
 
-    @Test
-    void castVote_다른투표의옵션_예외발생() {
-        // 다른 투표
-        Poll otherPoll = Poll.create("다른 투표", "otherCode", "otherToken",
-                LocalDateTime.now().plusDays(1));
-        ReflectionTestUtils.setField(otherPoll, "id", 2L);
-
-        // 다른 투표에 속한 옵션
-        VoteOption otherOption = VoteOption.create(otherPoll, "다른 옵션", 1);
-        ReflectionTestUtils.setField(otherOption, "id", 99L);
-
-        given(pollRepository.findByShareCode(anyString()))
-                .willReturn(Optional.of(openPoll)); // id=1L 투표 반환
-
-        given(voteOptionRepository.findById(any()))
-                .willReturn(Optional.of(otherOption)); // id=2L 소속 옵션 반환
-
-        BusinessException ex = assertThrows(BusinessException.class,
-                () -> voteService.castVote("dummyCode", new VoteRequest.Cast(99L, "dummyToken")));
-
-        assertThat(ex.getErrorCode()).isEqualTo(ErrorCode.OPTION_NOT_IN_POLL);
-    }
+    // DDD(Rich Entity) 전환으로 VoteOptionTest에서 검증 — 서비스 레벨 중복 제거
+//    @Test
+//    void castVote_다른투표의옵션_예외발생() {
+//        Poll otherPoll = Poll.create("다른 투표", "otherCode", "otherToken",
+//                LocalDateTime.now().plusDays(1));
+//        ReflectionTestUtils.setField(otherPoll, "id", 2L);
+//
+//        VoteOption otherOption = VoteOption.create(otherPoll, "다른 옵션", 1);
+//        ReflectionTestUtils.setField(otherOption, "id", 99L);
+//
+//        given(pollRepository.findByShareCode(anyString()))
+//                .willReturn(Optional.of(openPoll));
+//
+//        given(voteOptionRepository.findById(any()))
+//                .willReturn(Optional.of(otherOption));
+//
+//        BusinessException ex = assertThrows(BusinessException.class,
+//                () -> voteService.castVote("dummyCode", new VoteRequest.Cast(99L, "dummyToken")));
+//
+//        assertThat(ex.getErrorCode()).isEqualTo(ErrorCode.OPTION_NOT_IN_POLL);
+//    }
 
     @Test
     void castVote_중복투표_레디스차단_예외발생() {
@@ -226,6 +227,7 @@ public class VoteServiceTest {
 
         verify(voteRecordRepository).save(any());
         verify(voteCountPort).increment(anyLong(), anyLong());
+        verify(eventPublisher).publishEvent(any(VoteCastEvent.class));
     }
 
 }

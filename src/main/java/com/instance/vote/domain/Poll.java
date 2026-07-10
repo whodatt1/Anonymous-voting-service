@@ -1,5 +1,7 @@
 package com.instance.vote.domain;
 
+import com.instance.vote.exception.BusinessException;
+import com.instance.vote.exception.ErrorCode;
 import jakarta.persistence.*;
 import lombok.AccessLevel;
 import lombok.Getter;
@@ -59,5 +61,31 @@ public class Poll {
     // 투표 종료
     public void close() {
         this.status = PollStatus.CLOSED;
+    }
+
+    // Rich Entity
+    // 투표 가능 여부
+    public void validateVotable() {
+        if (this.status == PollStatus.CLOSED) {
+            throw new BusinessException(ErrorCode.POLL_ALREADY_CLOSED);
+        }
+
+        if (this.expiresAt.isBefore(LocalDateTime.now())) {
+            throw new BusinessException(ErrorCode.POLL_EXPIRED);
+        }
+    }
+
+    // 호스트 검증
+    public void validateHost(String hostToken) {
+        if (!this.hostToken.equals(hostToken)) {
+            throw new BusinessException(ErrorCode.UNAUTHORIZE_HOST);
+        }
+    }
+
+    // 닫힌 투표인지 검증
+    public void validateNotClosed() {
+        if (this.status == PollStatus.CLOSED) {
+            throw new BusinessException(ErrorCode.POLL_ALREADY_CLOSED);
+        }
     }
 }

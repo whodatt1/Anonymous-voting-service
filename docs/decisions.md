@@ -284,3 +284,13 @@
 - 패키지 구조: port/out/ + adapter/out/redis/ 만 추가하는 절충형 적용. controller/service/repository는 그대로 유지. 완전한 헥사고날(adapter/in/web/ 등 전체 이동)은 비교 실험 범위를 벗어나고 Phase 2 멀티모듈 분리 시점에 자연스럽게 재정리될 예정.
 - 적용 범위: 단일 모듈 유지, Gradle 멀티모듈 미적용 (Phase 2 프로세스 분리 시점에만 의미)
 - 구현 완료: VoteService(DuplicateVoteCheckPort, VoteCountPort), PollService(VoteCountReadPort) 포트 분리 및 Redis 어댑터 구현 완료
+
+## [2026-07-10] Domain Model 전환 — Rich Entity 절충안 채택
+- 결정: Poll에 validateVotable/validateHost/validateNotClosed, VoteOption에 validateBelongsToPoll 추가
+- 배경: 투표 유효성·호스트 인증·옵션 소속 확인 로직이 VoteService·PollService 4개 진입점에 중복 산재
+- 대안: 완전 DDD 분리(순수 POJO + JPA Entity 분리) — 파일 2배, Phase 2 모듈 분리 시 또 이동 필요
+- 채택 이유 / 트레이드오프: @Entity에 도메인 메서드만 추가해 비용 최소화. 도메인 규칙이 단일 위치로
+  응집되어 진입점별 중복 조건문 제거. Poll 단위 테스트가 ReflectionTestUtils 없이 가능해짐.
+  완전 POJO 분리는 Phase 2 멀티모듈 분리 시 자연스럽게 재정비 예정.
+- 변경 범위: Poll.validateVotable() / Poll.validateHost() / Poll.validateNotClosed() / VoteOption.validateBelongsToPoll() 추가.
+  서비스 테스트 역할 변화 — 도메인 규칙 검증은 PollTest/VoteOptionTest로 이동, VoteService 테스트는 오케스트레이션 검증 중심으로 단순화.
