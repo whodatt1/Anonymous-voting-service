@@ -23,6 +23,29 @@ services:
       - redis-data:/data
     command: redis-server --appendonly yes # AOF 영속성 활성화 모든 쓰기 명령을 디스크에 기록
 
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: vote-prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus-data:/prometheus
+    extra_hosts:
+      - "host.docker.internal:host-gateway" # 컨테이너에서 호스트 앱(8080) 접근용
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: vote-grafana
+    ports:
+      - "3000:3000"
+    volumes:
+      - grafana-data:/var/lib/grafana
+    depends_on:
+      - prometheus
+
 volumes:
   mysql-data:
   redis-data:
+  prometheus-data:
+  grafana-data:
