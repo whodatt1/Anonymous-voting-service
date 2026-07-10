@@ -72,18 +72,19 @@ public class PollServiceTest {
         assertThat(ex.getErrorCode()).isEqualTo(ErrorCode.POLL_NOT_FOUND);
     }
 
-    @Test
-    void getHostPoll_호스트토큰불일치_예외발생() {
-        Poll poll = Poll.create("테스트 투표", "dummyCode", "correctToken", LocalDateTime.now().plusDays(1));
-
-        given(pollRepository.findWithOptionByShareCode(anyString()))
-                .willReturn(Optional.of(poll));
-
-        BusinessException ex = assertThrows(BusinessException.class,
-                () -> pollService.getHostPoll("dummyCode", "wrongToken"));
-
-        assertThat(ex.getErrorCode()).isEqualTo(ErrorCode.UNAUTHORIZE_HOST);
-    }
+    // DDD(Rich Entity) 전환으로 PollTest에서 검증 — 서비스 레벨 중복 제거
+//    @Test
+//    void getHostPoll_호스트토큰불일치_예외발생() {
+//        Poll poll = Poll.create("테스트 투표", "dummyCode", "correctToken", LocalDateTime.now().plusDays(1));
+//
+//        given(pollRepository.findWithOptionByShareCode(anyString()))
+//                .willReturn(Optional.of(poll));
+//
+//        BusinessException ex = assertThrows(BusinessException.class,
+//                () -> pollService.getHostPoll("dummyCode", "wrongToken"));
+//
+//        assertThat(ex.getErrorCode()).isEqualTo(ErrorCode.UNAUTHORIZE_HOST);
+//    }
 
     @Test
     void getPoll_hostToken일치시_isHost_true() {
@@ -136,45 +137,46 @@ public class PollServiceTest {
         assertThat(ex.getErrorCode()).isEqualTo(ErrorCode.POLL_NOT_FOUND);
     }
 
-    @Test
-    void validateSseConnection_호스트토큰불일치_예외발생() {
-        Poll poll = Poll.create("테스트 투표", "dummyCode", "correctToken", LocalDateTime.now().plusDays(1));
-
-        given(pollRepository.findWithOptionByShareCode(anyString()))
-                .willReturn(Optional.of(poll));
-
-        BusinessException ex = assertThrows(BusinessException.class,
-                () -> pollService.validateSseConnection("dummyCode", "wrongToken"));
-
-        assertThat(ex.getErrorCode()).isEqualTo(ErrorCode.UNAUTHORIZE_HOST);
-    }
-
-    @Test
-    void validateSseConnection_이미닫힌투표_예외발생() {
-        Poll poll = Poll.create("테스트 투표", "dummyCode", "dummyToken", LocalDateTime.now().plusDays(1));
-        poll.close();
-
-        given(pollRepository.findWithOptionByShareCode(anyString()))
-                .willReturn(Optional.of(poll));
-
-        BusinessException ex = assertThrows(BusinessException.class,
-                () -> pollService.validateSseConnection("dummyCode", "dummyToken"));
-
-        assertThat(ex.getErrorCode()).isEqualTo(ErrorCode.POLL_ALREADY_CLOSED);
-    }
-
-    @Test
-    void validateSseConnection_만료된투표_예외발생() {
-        Poll poll = Poll.create("테스트 투표", "dummyCode", "dummyToken", LocalDateTime.now().minusDays(1));
-
-        given(pollRepository.findWithOptionByShareCode(anyString()))
-                .willReturn(Optional.of(poll));
-
-        BusinessException ex = assertThrows(BusinessException.class,
-                () -> pollService.validateSseConnection("dummyCode", "dummyToken"));
-
-        assertThat(ex.getErrorCode()).isEqualTo(ErrorCode.POLL_EXPIRED);
-    }
+    // DDD(Rich Entity) 전환으로 PollTest에서 검증 — 서비스 레벨 중복 제거
+//    @Test
+//    void validateSseConnection_호스트토큰불일치_예외발생() {
+//        Poll poll = Poll.create("테스트 투표", "dummyCode", "correctToken", LocalDateTime.now().plusDays(1));
+//
+//        given(pollRepository.findWithOptionByShareCode(anyString()))
+//                .willReturn(Optional.of(poll));
+//
+//        BusinessException ex = assertThrows(BusinessException.class,
+//                () -> pollService.validateSseConnection("dummyCode", "wrongToken"));
+//
+//        assertThat(ex.getErrorCode()).isEqualTo(ErrorCode.UNAUTHORIZE_HOST);
+//    }
+//
+//    @Test
+//    void validateSseConnection_이미닫힌투표_예외발생() {
+//        Poll poll = Poll.create("테스트 투표", "dummyCode", "dummyToken", LocalDateTime.now().plusDays(1));
+//        poll.close();
+//
+//        given(pollRepository.findWithOptionByShareCode(anyString()))
+//                .willReturn(Optional.of(poll));
+//
+//        BusinessException ex = assertThrows(BusinessException.class,
+//                () -> pollService.validateSseConnection("dummyCode", "dummyToken"));
+//
+//        assertThat(ex.getErrorCode()).isEqualTo(ErrorCode.POLL_ALREADY_CLOSED);
+//    }
+//
+//    @Test
+//    void validateSseConnection_만료된투표_예외발생() {
+//        Poll poll = Poll.create("테스트 투표", "dummyCode", "dummyToken", LocalDateTime.now().minusDays(1));
+//
+//        given(pollRepository.findWithOptionByShareCode(anyString()))
+//                .willReturn(Optional.of(poll));
+//
+//        BusinessException ex = assertThrows(BusinessException.class,
+//                () -> pollService.validateSseConnection("dummyCode", "dummyToken"));
+//
+//        assertThat(ex.getErrorCode()).isEqualTo(ErrorCode.POLL_EXPIRED);
+//    }
 
     @Test
     void validateSseConnection_정상케이스_성공() {
@@ -271,32 +273,33 @@ public class PollServiceTest {
         assertThat(ex.getErrorCode()).isEqualTo(ErrorCode.POLL_NOT_FOUND);
     }
 
-    @Test
-    void closePoll_호스트토큰불일치_예외발생() {
-        Poll poll = Poll.create("테스트 투표", "dummyCode", "correctToken", LocalDateTime.now().plusDays(1));
-
-        given(pollRepository.findByShareCode(anyString()))
-                .willReturn(Optional.of(poll));
-
-        BusinessException ex = assertThrows(BusinessException.class,
-                () -> pollService.closePoll("dummyCode", "wrongToken"));
-
-        assertThat(ex.getErrorCode()).isEqualTo(ErrorCode.UNAUTHORIZE_HOST);
-    }
-
-    @Test
-    void closePoll_이미닫힌투표_예외발생() {
-        Poll poll = Poll.create("테스트 투표", "dummyCode", "dummyToken", LocalDateTime.now().plusDays(1));
-        poll.close();
-
-        given(pollRepository.findByShareCode(anyString()))
-                .willReturn(Optional.of(poll));
-
-        BusinessException ex = assertThrows(BusinessException.class,
-                () -> pollService.closePoll("dummyCode", "dummyToken"));
-
-        assertThat(ex.getErrorCode()).isEqualTo(ErrorCode.POLL_ALREADY_CLOSED);
-    }
+    // DDD(Rich Entity) 전환으로 PollTest에서 검증 — 서비스 레벨 중복 제거
+//    @Test
+//    void closePoll_호스트토큰불일치_예외발생() {
+//        Poll poll = Poll.create("테스트 투표", "dummyCode", "correctToken", LocalDateTime.now().plusDays(1));
+//
+//        given(pollRepository.findByShareCode(anyString()))
+//                .willReturn(Optional.of(poll));
+//
+//        BusinessException ex = assertThrows(BusinessException.class,
+//                () -> pollService.closePoll("dummyCode", "wrongToken"));
+//
+//        assertThat(ex.getErrorCode()).isEqualTo(ErrorCode.UNAUTHORIZE_HOST);
+//    }
+//
+//    @Test
+//    void closePoll_이미닫힌투표_예외발생() {
+//        Poll poll = Poll.create("테스트 투표", "dummyCode", "dummyToken", LocalDateTime.now().plusDays(1));
+//        poll.close();
+//
+//        given(pollRepository.findByShareCode(anyString()))
+//                .willReturn(Optional.of(poll));
+//
+//        BusinessException ex = assertThrows(BusinessException.class,
+//                () -> pollService.closePoll("dummyCode", "dummyToken"));
+//
+//        assertThat(ex.getErrorCode()).isEqualTo(ErrorCode.POLL_ALREADY_CLOSED);
+//    }
 
     @Test
     void closePoll_정상케이스_성공() {
@@ -308,5 +311,6 @@ public class PollServiceTest {
         assertDoesNotThrow(() -> pollService.closePoll("dummyCode", "dummyToken"));
 
         assertThat(poll.getStatus()).isEqualTo(PollStatus.CLOSED);
+        verify(sseEmitterManager).completeAll(any());
     }
 }

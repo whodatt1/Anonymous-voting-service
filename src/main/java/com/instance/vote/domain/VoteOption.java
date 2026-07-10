@@ -1,5 +1,7 @@
 package com.instance.vote.domain;
 
+import com.instance.vote.exception.BusinessException;
+import com.instance.vote.exception.ErrorCode;
 import jakarta.persistence.*;
 import lombok.AccessLevel;
 import lombok.Getter;
@@ -31,5 +33,13 @@ public class VoteOption {
         option.content = content;
         option.displayOrder = displayOrder;
         return option;
+    }
+
+    // Rich Entity
+    // 투표에 옵션 포함 여부
+    public void validateBelongsToPoll(Long pollId) {
+        if (!this.poll.getId().equals(pollId)) {
+            throw new BusinessException(ErrorCode.OPTION_NOT_IN_POLL);
+        }
     }
 }

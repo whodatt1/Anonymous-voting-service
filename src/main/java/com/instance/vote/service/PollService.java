@@ -1,7 +1,6 @@
 package com.instance.vote.service;
 
 import com.instance.vote.domain.Poll;
-import com.instance.vote.domain.PollStatus;
 import com.instance.vote.domain.VoteOption;
 import com.instance.vote.dto.PollRequest;
 import com.instance.vote.dto.PollResponse;
@@ -17,7 +16,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -66,10 +64,12 @@ public class PollService {
         Poll poll = pollRepository.findWithOptionByShareCode(shareCode)
                 .orElseThrow(() -> new BusinessException(ErrorCode.POLL_NOT_FOUND));
 
-        // 호스트 토큰 검증
-        if (!hostToken.equals(poll.getHostToken())) {
-            throw new BusinessException(ErrorCode.UNAUTHORIZE_HOST);
-        }
+        // 호스트 토큰 검증 -> Rich Entity 로 변경 후 주석처리
+//        if (!hostToken.equals(poll.getHostToken())) {
+//            throw new BusinessException(ErrorCode.UNAUTHORIZE_HOST);
+//        }
+
+        poll.validateHost(hostToken);
 
         return toDetail(poll, null, hostToken);
     }
@@ -86,15 +86,19 @@ public class PollService {
         Poll poll = pollRepository.findByShareCode(shareCode)
                 .orElseThrow(() -> new BusinessException(ErrorCode.POLL_NOT_FOUND));
 
-        // 호스트 토큰 검증
-        if (!hostToken.equals(poll.getHostToken())) {
-            throw new BusinessException(ErrorCode.UNAUTHORIZE_HOST);
-        }
+        // 호스트 토큰 검증 -> Rich Entity 로 변경 후 주석처리
+//        if (!hostToken.equals(poll.getHostToken())) {
+//            throw new BusinessException(ErrorCode.UNAUTHORIZE_HOST);
+//        }
 
-        // 닫혔는지 여부
-        if (poll.getStatus() == PollStatus.CLOSED) {
-            throw new BusinessException(ErrorCode.POLL_ALREADY_CLOSED);
-        }
+        poll.validateHost(hostToken);
+
+        // 닫혔는지 여부 -> Rich Entity 로 변경 후 주석처리
+//        if (poll.getStatus() == PollStatus.CLOSED) {
+//            throw new BusinessException(ErrorCode.POLL_ALREADY_CLOSED);
+//        }
+
+        poll.validateNotClosed();
 
         poll.close();
         sseEmitterManager.completeAll(poll.getId());
@@ -106,20 +110,24 @@ public class PollService {
         Poll poll = pollRepository.findWithOptionByShareCode(shareCode)
                 .orElseThrow(() -> new BusinessException(ErrorCode.POLL_NOT_FOUND));
 
-        // 호스트 토큰 검증
-        if (!hostToken.equals(poll.getHostToken())) {
-            throw new BusinessException(ErrorCode.UNAUTHORIZE_HOST);
-        }
+        // 호스트 토큰 검증 -> Rich Entity 로 변경 후 주석처리
+//        if (!hostToken.equals(poll.getHostToken())) {
+//            throw new BusinessException(ErrorCode.UNAUTHORIZE_HOST);
+//        }
 
-        // 닫혔는지 여부
-        if (poll.getStatus() == PollStatus.CLOSED) {
-            throw new BusinessException(ErrorCode.POLL_ALREADY_CLOSED);
-        }
+        poll.validateHost(hostToken);
 
-        // 만료 시간이 지났는지 검사
-        if (poll.getExpiresAt().isBefore(LocalDateTime.now())) {
-            throw new BusinessException(ErrorCode.POLL_EXPIRED);
-        }
+        // 닫혔는지 여부 -> Rich Entity 로 변경 후 주석처리
+//        if (poll.getStatus() == PollStatus.CLOSED) {
+//            throw new BusinessException(ErrorCode.POLL_ALREADY_CLOSED);
+//        }
+
+        // 만료 시간이 지났는지 검사 -> Rich Entity 로 변경 후 주석처리
+//        if (poll.getExpiresAt().isBefore(LocalDateTime.now())) {
+//            throw new BusinessException(ErrorCode.POLL_EXPIRED);
+//        }
+
+        poll.validateVotable();
 
         return toDetail(poll, null, hostToken);
     }

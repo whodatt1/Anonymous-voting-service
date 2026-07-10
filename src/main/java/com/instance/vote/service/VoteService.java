@@ -46,23 +46,28 @@ public class VoteService {
         Poll poll = pollRepository.findByShareCode(shareCode)
                 .orElseThrow(() -> new BusinessException(ErrorCode.POLL_NOT_FOUND));
 
-        // 종료된 투표인지 검사
-        if (poll.getStatus() == PollStatus.CLOSED) {
-            throw new BusinessException(ErrorCode.POLL_ALREADY_CLOSED);
-        }
+        // 종료된 투표인지 검사 -> Rich Entity 로 변경 후 주석처리
+//        if (poll.getStatus() == PollStatus.CLOSED) {
+//            throw new BusinessException(ErrorCode.POLL_ALREADY_CLOSED);
+//        }
 
-        // 만료 시간이 지났는지 검사
-        if (poll.getExpiresAt().isBefore(LocalDateTime.now())) {
-            throw new BusinessException(ErrorCode.POLL_EXPIRED);
-        }
+        // 만료 시간이 지났는지 검사 -> Rich Entity 로 변경 후 주석처리
+//        if (poll.getExpiresAt().isBefore(LocalDateTime.now())) {
+//            throw new BusinessException(ErrorCode.POLL_EXPIRED);
+//        }
 
-        // VoteOption 조회 + Poll 소속 확인
+        poll.validateVotable();
+
+        // VoteOption 조회
         VoteOption voteOption = voteOptionRepository.findById(request.optionId())
                 .orElseThrow(() -> new BusinessException(ErrorCode.OPTION_NOT_FOUND));
 
-        if (!Objects.equals(poll.getId(), voteOption.getPoll().getId())) {
-            throw new BusinessException(ErrorCode.OPTION_NOT_IN_POLL);
-        }
+        // Poll 소속 확인 -> Rich Entity 로 변경 후 주석처리
+//        if (!Objects.equals(poll.getId(), voteOption.getPoll().getId())) {
+//            throw new BusinessException(ErrorCode.OPTION_NOT_IN_POLL);
+//        }
+
+        voteOption.validateBelongsToPoll(poll.getId());
 
         // Redis SEXNX(Set if Not eXists) - 중복 투표 1차 방어 -> 포트 호출로 변경
         //String dupKey = "vote:dup:" + poll.getId() + ":" + request.participantToken();
