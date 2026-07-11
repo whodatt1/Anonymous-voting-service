@@ -23,7 +23,7 @@ services:
       - redis-data:/data
     command: redis-server --appendonly yes # AOF 영속성 활성화 모든 쓰기 명령을 디스크에 기록
 
-  prometheus:
+  prometheus: # 이 이름이 Docker 내부 도메인이 됨
     image: prom/prometheus:latest
     container_name: vote-prometheus
     ports:
@@ -35,12 +35,16 @@ services:
       - "host.docker.internal:host-gateway" # 컨테이너에서 호스트 앱(8080) 접근용
 
   grafana:
-    image: grafana/grafana:latest
+    image: grafana/grafana:11.3.0
     container_name: vote-grafana
     ports:
       - "3000:3000"
     volumes:
       - grafana-data:/var/lib/grafana
+      # 볼륨 마운트를 읽는 법: 호스트경로:컨테이너경로
+      # /etc/grafana/provisioning -> Grafana 시작 시 자동으로 스캔하는 경로
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning
+      - ./monitoring/grafana/dashboards:/etc/grafana/dashboards
     depends_on:
       - prometheus
 

@@ -23,4 +23,10 @@ management:
         include: health, info, prometheus
   metrics:
     tags:
-      applicaion: ${spring.application.name}
+      application: ${spring.application.name}
+
+server:
+  tomcat:
+    mbeanregistry:
+      # 해당 설정을 켜야 Tomcat 내부 MBean에서 스레드 풀 정보를 읽어올 수 있다.
+      enabled: true # tomcat_threads_* 메트릭 노출 활성화 (기본값 false)

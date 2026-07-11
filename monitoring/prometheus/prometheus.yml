@@ -1,4 +1,15 @@
+#  [ Spring 앱 ]    ->    [ Prometheus ]    ->    [ Grafana ]
+#  메트릭 제공             메트릭 수집 및 저장        메트릭 시각화
+
+# 메트릭 예시..
+# HELP tomcat_threads_busy_threads
+# TYPE tomcat_threads_busy_threads gauge
+#tomcat_threads_busy_threads{name="http-nio-8080",} 1.0
+#...
+
 global:
+  # 15초마다 Spring 앱의 /actuator/prometheus를 직접 긁어와 자기 내부 DB에 저장
+  # 이 동작을 Pull 방식 스크래핑
   scrape_interval: 15s
 
 scrape_configs:
@@ -6,4 +17,5 @@ scrape_configs:
     metrics_path: /actuator/prometheus
     static_configs:
       - targets:
+          # Docker 컨테이너 안에서 호스트 PC의 8080으로 접근하라
           - host.docker.internal:8080

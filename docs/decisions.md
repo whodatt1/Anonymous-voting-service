@@ -294,3 +294,16 @@
   완전 POJO 분리는 Phase 2 멀티모듈 분리 시 자연스럽게 재정비 예정.
 - 변경 범위: Poll.validateVotable() / Poll.validateHost() / Poll.validateNotClosed() / VoteOption.validateBelongsToPoll() 추가.
   서비스 테스트 역할 변화 — 도메인 규칙 검증은 PollTest/VoteOptionTest로 이동, VoteService 테스트는 오케스트레이션 검증 중심으로 단순화.
+
+## [2026-07-11] Grafana 모니터링 구성 — 파일 기반 프로비저닝 채택
+- 결정: Grafana 대시보드를 UI 수동 설정이 아닌 파일 기반 프로비저닝으로 관리
+- 배경: docker-compose down -v 시 수동으로 만든 대시보드가 볼륨과 함께 삭제되어 재현 불가 문제
+- 대안: Grafana UI 수동 설정 — 빠르지만 볼륨 삭제 시 대시보드 유실
+- 채택 이유 / 트레이드오프: datasource.yml + dashboard.yml + vote-app.json이 Git에 보존되어 docker-compose up 만으로 대시보드 자동 복구. 포트폴리오 레포에 모니터링 구성이 코드로 남는 이점. 단, datasource uid가 Grafana 인스턴스에 종속되어 환경이 달라지면 uid 불일치 가능성 있음.
+- 대시보드 패널 구성: Tomcat 스레드 풀 현황(busy/current/max) / SSE 활성 커넥션 수 / HTTP 엔드포인트별 평균 응답 시간 — Phase 0 스레드 풀 점유 실험 관찰 지표
+
+## [2026-07-11] SSE 커스텀 메트릭 — Micrometer Gauge 채택
+- 결정: SseEmitterManager에 Micrometer Gauge로 활성 SSE 커넥션 수(sse_connections_active) 메트릭 추가
+- 배경: Spring 자동 제공 메트릭에 SSE 커넥션 수가 없어 Phase 0 스레드 풀 점유 실험의 핵심 관찰 지표 누락
+- 대안: Counter로 등록/해제 횟수 추적 — 누적값이라 현재 활성 수를 직접 산출 불가
+- 채택 이유 / 트레이드오프: Gauge는 현재 상태값(오르내림)을 추적하는 타입으로 활성 커넥션 수에 적합. emitters Map을 직접 참조해 별도 카운터 동기화 없이 항상 정확한 값 유지. MeterRegistry는 생성자에서만 사용하므로 필드로 저장하지 않음.
