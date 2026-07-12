@@ -118,7 +118,9 @@ VoteService
 무한 새로고침 방지를 위해 `GET /votes/{shareCode}` 엔드포인트에 분당 30회 제한을 적용했습니다.
 
 - **키**: participantToken (IP 수집 없이 비회원 식별)
-- **알고리즘**: refillGreedy (초당 0.5개 지속 충전 — 윈도우 경계에서 2배 허용하는 refillIntervally 문제 방지)
+- **알고리즘**: refillGreedy (초당 0.5개 지속 충전)
+  - `refillIntervally`는 1분 윈도우가 끝날 때 토큰 30개를 한꺼번에 충전합니다. 0:59에 30개, 1:01에 30개를 쓰면 2초 안에 60회 요청이 가능한 문제가 생깁니다.
+  - `refillGreedy`는 초당 0.5개씩 지속 충전합니다. 30개를 쓰려면 반드시 60초가 필요하므로 어느 구간에서도 순간 폭발이 불가능합니다.
 - **저장소**: LettuceBasedProxyManager (기존 Redis 클라이언트 재사용)
 - **적용 방식**: `@RateLimit` 커스텀 애노테이션 + AOP
 
@@ -170,6 +172,8 @@ emitters.compute(pollId, (k, existing) -> {
     return emitter; // 새 emitter로 교체
 });
 ```
+
+`compute()`를 선택한 이유: `ConcurrentHashMap`은 `compute()` 실행 중 해당 키에 대한 락을 유지합니다. "기존 emitter 조회 → 종료 → 새 emitter 저장"이 하나의 원자적 단위로 처리되므로, 두 탭이 동시에 접속해도 emitter가 중복 등록되거나 잘못 삭제되는 경쟁 조건이 발생하지 않습니다.
 
 #### 버그 ③ 핑퐁 재연결 — `complete()` 호출 시 브라우저가 자동 재연결
 
