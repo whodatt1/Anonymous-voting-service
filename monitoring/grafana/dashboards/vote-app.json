@@ -314,8 +314,8 @@
       "targets": [
         {
           "editorMode": "code",
-          "expr": "rate(http_server_requests_seconds_sum{application=\"vote\"}[1m]) / rate(http_server_requests_seconds_count{application=\"vote\"}[1m])",
-          "legendFormat": "{{uri}}",
+          "expr": "sum by (uri, method) (rate(http_server_requests_seconds_sum{application=\"vote\", uri!~\"/votes/{shareCode}/stream|/actuator.*\"}[1m])) / sum by (uri, method) (rate(http_server_requests_seconds_count{application=\"vote\", uri!~\"/votes/{shareCode}/stream|/actuator.*\"}[1m]))",
+          "legendFormat": "{{uri}} [{{method}}]",
           "range": true,
           "refId": "A"
         }
