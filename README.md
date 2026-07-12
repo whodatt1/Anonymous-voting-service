@@ -79,7 +79,10 @@ castVote() → DB INSERT + Redis INCR → publishEvent(VoteCastEvent)
     → SseEmitterManager.broadcast() → Host 화면 실시간 갱신
 ```
 
-`@TransactionalEventListener(AFTER_COMMIT)` 을 사용해 커밋 전 데이터를 Host가 조회하는 상황을 방지했습니다.
+`@TransactionalEventListener(AFTER_COMMIT)`을 사용한 이유는 두 가지입니다.
+
+- **정합성**: `@EventListener`(기본값)는 트랜잭션 안에서 실행됩니다. 커밋 전에 SSE 이벤트가 나가면 Host 화면이 즉시 `GET /votes/{shareCode}`를 호출하는데, DB에는 아직 미커밋 상태라 이전 집계가 반환됩니다.
+- **트랜잭션 오염**: SSE `send()` 도중 `IOException`이 발생하면 같은 트랜잭션 안이므로 DB INSERT(투표 기록)까지 롤백될 수 있습니다. `AFTER_COMMIT`은 트랜잭션 종료 후 실행되므로 SSE 오류가 DB에 영향을 주지 않습니다.
 
 ### 2. Redis + DB 이중화 집계 구조 (Write-Through)
 
