@@ -307,3 +307,24 @@
 - 배경: Spring 자동 제공 메트릭에 SSE 커넥션 수가 없어 Phase 0 스레드 풀 점유 실험의 핵심 관찰 지표 누락
 - 대안: Counter로 등록/해제 횟수 추적 — 누적값이라 현재 활성 수를 직접 산출 불가
 - 채택 이유 / 트레이드오프: Gauge는 현재 상태값(오르내림)을 추적하는 타입으로 활성 커넥션 수에 적합. emitters Map을 직접 참조해 별도 카운터 동기화 없이 항상 정확한 값 유지. MeterRegistry는 생성자에서만 사용하므로 필드로 저장하지 않음.
+
+## [2026-07-12] Phase 0 부하 테스트 실험 결과 — SseEmitter 스레드 무관 확인 및 Phase 2 전환 조건 재정의
+- 결정: 기존 Phase 2 전환 조건("SSE가 Tomcat 스레드를 고갈시킬 때")을 폐기. 전환 조건을 실제 병목 지점 기반으로 재정의 필요.
+- 배경: k6 부하 테스트(SSE 150개 ramping + REST 30 req/s 병렬)로 Phase 0 스레드 점유 가설 검증
+- 실험 결과:
+  - Tomcat 사용 중인 스레드: SSE 150개 연결 상태에서도 ≈0 유지 (SseEmitter는 AsyncContext/NIO 처리 — 스레드 비점유 구조)
+  - HTTP 응답시간: SSE 0→150개 전 구간에서 p90=19.65ms / p95=20.96ms, 거의 변화 없음
+  - http_req_failed: 0.00% (45,161건 전량 성공)
+  - 테스트 종료 시 Tomcat 스레드 순간 스파이크(75까지) — 150개 SSE 일제히 끊길 때 연결 종료 처리가 몰린 정상 현상
+- 가설 폐기 근거: SseEmitter는 서블릿 3.1 AsyncContext로 처리되어 응답을 유보한 채 Tomcat 스레드를 즉시 반환. "SSE 누적 → 스레드 고갈 → REST 응답 지연"은 구조적으로 발생하지 않음.
+- 실제 병목 가능 지점: NIO 커넥션 수, JVM 힙(emitter 객체 누적), OS 파일 디스크립터 한도 — Phase 2 전환 조건은 이 지점의 실측값을 기준으로 추후 재정의.
+
+## [2026-07-12] SSE 생명주기 관리 전략 — 교체 방식 + Heartbeat 채택
+- 결정: pollId당 SseEmitter 1개 유지(교체 방식) + 30초 Heartbeat + close 이벤트 도입
+- 배경: 브라우저 수동 테스트에서 두 가지 버그 발견. ① 브라우저 탭 닫아도 emitter가 Map에 잔류(SseEmitter는 send() 실패 시에만 disconnect 감지). ② 같은 투표를 다중 탭으로 열면 SSE 연결이 탭 수만큼 누적 생성.
+- 대안: 다중 emitter 허용 유지(기존) — 구현 단순하나 좀비 연결 누적 및 핑퐁 재연결 문제 해결 불가
+- 채택 이유 / 트레이드오프:
+  - 교체 방식(ConcurrentHashMap.compute()): 새 탭 접속 시 기존 emitter에 close 이벤트 전송 후 complete(), 새 emitter로 원자적 교체. pollId당 항상 1개 보장.
+  - Heartbeat(@Scheduled 30초): 주기적 comment ping으로 죽은 연결을 IOException으로 감지 → onError 발화 → remove(). 브라우저 비정상 종료 시 최대 30초 내 정리.
+  - close 이벤트 + 프론트 eventSource.close(): 교체된 구 탭의 EventSource 자동 재연결 방지. 네트워크 단절 등 close 이벤트 없는 경우는 자동 재연결 그대로 동작.
+  - 트레이드오프: 교체된 구 탭은 새로고침 전까지 SSE 수신 불가(의도한 동작). 조건부 remove(pollId, emitter)로 새 emitter가 콜백에 의해 실수로 삭제되는 레이스 컨디션 방지.
