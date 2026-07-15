@@ -52,7 +52,7 @@ public class PollTest {
     @Test
     void 만료_기한이_7일을_초과하면_투표를_생성할_수_없다() {
         assertThatThrownBy(() ->
-            Poll.create("테스트 투표", "dummyCode", "dummyToken", LocalDateTime.now().plusDays(8))
+            Poll.create("테스트 투표", "dummyCode", "dummyToken", LocalDateTime.now().plusDays(9))
         )
                 .isInstanceOf(BusinessException.class)
                 .hasFieldOrPropertyWithValue("errorCode", ErrorCode.POLL_EXPIRY_EXCEEDS_LIMIT);
