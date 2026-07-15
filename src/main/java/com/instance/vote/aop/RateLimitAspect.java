@@ -64,17 +64,12 @@ public class RateLimitAspect {
     private String extractClientIp(HttpServletRequest request) {
         String forwarded = request.getHeader("X-Forwarded-For");
         if (forwarded != null && !forwarded.isBlank()) {
-            // X-Forwarded-For는 클라이언트가 직접 위조할 수 있다.
-            // 예) 공격자가 "X-Forwarded-For: 가짜IP"를 보내면
-            //     ALB가 실제 IP를 뒤에 붙여 "가짜IP, 진짜IP"로 만든다.
-            // ALB는 항상 실제 클라이언트 IP를 맨 뒤에 추가하므로
-            // 마지막 값이 ALB가 보장하는 신뢰할 수 있는 IP다.
-            String[] parts = forwarded.split(",");
-            return parts[parts.length - 1].trim();
+            // Nginx가 proxy_set_header X-Forwarded-For $remote_addr 로 헤더를 교체하므로
+            // 클라이언트가 위조한 헤더는 덮어씌워지고 단일 값(진짜 IP)만 들어온다.
+            return forwarded.split(",")[0].trim();
         }
         // X-Forwarded-For가 없는 경우 = Spring에 TCP를 직접 맺은 상대방 IP.
-        // 로컬 개발: 브라우저가 Spring에 직접 붙으므로 127.0.0.1.
-        // ALB가 있으면 X-Forwarded-For가 항상 존재하므로 이 분기에 오지 않는다.
+        // 로컬 개발 환경에서 브라우저가 Spring에 직접 붙으므로 127.0.0.1이 반환된다.
         return request.getRemoteAddr();
     }
 }
