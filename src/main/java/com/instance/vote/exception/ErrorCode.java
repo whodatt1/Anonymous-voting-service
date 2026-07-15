@@ -14,7 +14,8 @@ public enum ErrorCode {
     OPTION_NOT_FOUND(HttpStatus.NOT_FOUND, "OPTION_001", "옵션을 찾을 수 없습니다."),
     OPTION_NOT_IN_POLL(HttpStatus.BAD_REQUEST, "OPTION_002", "해당 투표 소속의 옵션이 아닙니다."),
     DUPLICATE_VOTE(HttpStatus.CONFLICT, "VOTE_001", "이미 해당 투표에 참여하였습니다."),
-    TOO_MANY_REQUESTS(HttpStatus.TOO_MANY_REQUESTS, "VOTE_429", "요청이 너무 많습니다. 잠시 후 다시 시도해주세요.");
+    TOO_MANY_REQUESTS(HttpStatus.TOO_MANY_REQUESTS, "VOTE_429", "요청이 너무 많습니다. 잠시 후 다시 시도해주세요."),
+    POLL_EXPIRY_EXCEEDS_LIMIT(HttpStatus.BAD_REQUEST, "POLL_005", "투표 만료 기간은 최대 7일까지 설정 가능합니다.");
 
     private final HttpStatus status;
     private final String code;

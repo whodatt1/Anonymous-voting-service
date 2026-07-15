@@ -9,4 +9,6 @@ import java.util.List;
 public interface VoteOptionRepository extends JpaRepository<VoteOption, Long> {
 
     List<VoteOption> findByPollOrderByDisplayOrder(Poll poll);
+
+    void deleteByPollIdIn(List<Long> pollIds);
 }

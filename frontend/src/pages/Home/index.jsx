@@ -114,6 +114,7 @@ export default function Home() {
               required
               className="w-full px-4 py-3 rounded-xl bg-neutral-900 border border-neutral-700 text-white focus:outline-none focus:border-violet-500 focus:ring-1 focus:ring-violet-500 transition [color-scheme:dark]"
             />
+            <p className="text-xs text-neutral-500 mt-1.5">마감 기한은 최대 7일이며, 투표 결과는 마감 후 30일간 보관됩니다.</p>
           </div>
 
           {error && (

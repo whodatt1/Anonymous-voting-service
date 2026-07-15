@@ -9,6 +9,7 @@ import lombok.NoArgsConstructor;
 import org.hibernate.annotations.CreationTimestamp;
 
 import java.time.LocalDateTime;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -39,6 +40,9 @@ public class Poll {
     @Column(name = "expires_at", nullable = false)
     private LocalDateTime expiresAt; // 투표 마감 시각
 
+    @Column(name = "closed_at")
+    private LocalDateTime closedAt;
+
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt; // 생성 시각
@@ -49,6 +53,11 @@ public class Poll {
 
     public static Poll create(String title, String shareCode,
                               String hostToken, LocalDateTime expiresAt) {
+        // 생성 시 유효 기간 7일 미만 비즈니스 규칙 규정
+        if (ChronoUnit.DAYS.between(LocalDateTime.now(), expiresAt) > 7) {
+            throw new BusinessException(ErrorCode.POLL_EXPIRY_EXCEEDS_LIMIT);
+        }
+
         Poll poll = new Poll();
         poll.title = title;
         poll.shareCode = shareCode;
@@ -61,6 +70,7 @@ public class Poll {
     // 투표 종료
     public void close() {
         this.status = PollStatus.CLOSED;
+        this.closedAt = LocalDateTime.now();
     }
 
     // Rich Entity

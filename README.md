@@ -115,14 +115,65 @@ VoteService
 
 ### 4. Rate Limiting — Bucket4j 토큰 버킷
 
-무한 새로고침 방지를 위해 `GET /votes/{shareCode}` 엔드포인트에 분당 30회 제한을 적용했습니다.
+무한 새로고침·투표 조작 방지를 위해 주요 엔드포인트에 제한을 적용했습니다.
 
-- **키**: participantToken (IP 수집 없이 비회원 식별)
-- **알고리즘**: refillGreedy (초당 0.5개 지속 충전)
-  - `refillIntervally`는 1분 윈도우가 끝날 때 토큰 30개를 한꺼번에 충전합니다. 0:59에 30개, 1:01에 30개를 쓰면 2초 안에 60회 요청이 가능한 문제가 생깁니다.
-  - `refillGreedy`는 초당 0.5개씩 지속 충전합니다. 30개를 쓰려면 반드시 60초가 필요하므로 어느 구간에서도 순간 폭발이 불가능합니다.
+| 엔드포인트 | 제한 |
+|---|---|
+| `GET /votes/{shareCode}` | 분당 30회 |
+| `POST /polls` | 분당 5회 |
+| `POST /votes/{shareCode}/vote` | 분당 5회 |
+
+- **키**: 클라이언트 IP
+- **알고리즘**: refillGreedy (초당 균등 충전)
+  - `refillIntervally`는 1분 윈도우가 끝날 때 토큰을 한꺼번에 충전합니다. 0:59에 30개, 1:01에 30개를 쓰면 2초 안에 60회 요청이 가능한 문제가 생깁니다.
+  - `refillGreedy`는 초당 균등 충전합니다. 30개를 쓰려면 반드시 60초가 필요하므로 어느 구간에서도 순간 폭발이 불가능합니다.
 - **저장소**: LettuceBasedProxyManager (기존 Redis 클라이언트 재사용)
 - **적용 방식**: `@RateLimit` 커스텀 애노테이션 + AOP
+
+**왜 쿠키(participantToken) 기반에서 IP 기반으로 전환했는가?**
+
+초기 설계는 쿠키에 저장된 `participantToken`을 Rate Limiting 키로 사용했습니다. 그러나 쿠키를 삭제하고 새로고침하면 새 토큰이 발급되어 제한이 즉시 초기화되는 치명적 허점이 있었습니다. IP는 클라이언트가 임의로 변경할 수 없어 더 강한 식별 기준입니다.
+
+**X-Forwarded-For 처리**
+
+Nginx는 `proxy_set_header X-Forwarded-For $remote_addr`으로 클라이언트가 보낸 기존 헤더를 덮어씁니다. 위조된 헤더가 Spring까지 전달되지 않으므로 첫 번째 값이 곧 진짜 클라이언트 IP입니다.
+
+```java
+String forwarded = request.getHeader("X-Forwarded-For");
+if (forwarded != null && !forwarded.isBlank()) {
+    return forwarded.split(",")[0].trim();
+}
+return request.getRemoteAddr(); // 로컬 개발 환경 폴백
+```
+
+### 5. Poll 생명주기 관리 — 활성 기간과 보관 기간의 분리
+
+투표에는 두 개의 별개 시간 개념이 존재합니다.
+
+| 개념 | 필드 | 결정 주체 | 최대 |
+|---|---|---|---|
+| 활성 기간 | `expiresAt` | 생성자 설정 | 7일 |
+| 보관 기간 | — | 비즈니스 규칙 | 종료 후 30일 |
+
+두 개념을 분리한 이유는 목적이 다르기 때문입니다. "언제까지 투표를 받을 것인가"는 생성자의 선택이고, "데이터를 얼마나 보관할 것인가"는 운영 정책입니다. 같은 기간으로 묶으면 7일 후 투표와 결과가 동시에 사라지는 비직관적 UX가 됩니다.
+
+**closedAt이 필요한 이유**
+
+생성자가 수동 종료하면 `expiresAt` 이전에 투표가 끝납니다. 보관 기간은 실제로 닫힌 시점부터 계산해야 하므로 `closedAt` 컬럼을 별도로 추가했습니다.
+
+```java
+// 수동 종료는 closedAt, 자연 만료는 expiresAt 기준으로 통합
+@Query("SELECT p FROM Poll p WHERE COALESCE(p.closedAt, p.expiresAt) < :threshold")
+List<Poll> findAllClosedBefore(@Param("threshold") LocalDateTime threshold);
+```
+
+**삭제 순서 (외래키 제약 준수)**
+
+```
+VoteRecord 삭제 → VoteOption 삭제 → Poll 삭제 → Redis 키 삭제
+```
+
+Redis 키는 DB 삭제 후 정리합니다. 순서가 뒤집히면 Redis 조회 실패와 DB 부재가 겹쳐 집계 폴백도 불가능해집니다.
 
 ---
 
