@@ -329,3 +329,36 @@
   - Heartbeat(@Scheduled 30초): 주기적 comment ping으로 죽은 연결을 IOException으로 감지 → onError 발화 → remove(). 브라우저 비정상 종료 시 최대 30초 내 정리.
   - close 이벤트 + 프론트 eventSource.close(): 교체된 구 탭의 EventSource 자동 재연결 방지. 네트워크 단절 등 close 이벤트 없는 경우는 자동 재연결 그대로 동작.
   - 트레이드오프: 교체된 구 탭은 새로고침 전까지 SSE 수신 불가(의도한 동작). 조건부 remove(pollId, emitter)로 새 emitter가 콜백에 의해 실수로 삭제되는 레이스 컨디션 방지.
+
+## [2026-07-15] 투표 데이터 보관 정책 — 활성 기간과 보관 기간 분리
+- 결정: expiresAt 상한 7일, 데이터 보관 기간은 종료 후 30일로 비즈니스 규칙 고정 후 자동 삭제
+- 배경: 종료된 Poll/VoteOption/VoteRecord/Redis 집계 키가 정리 정책 없이 영구 누적. 스팸 생성 시 스토리지 위협 가능성
+- 대안: expiresAt 상한 30일 — 실제 투표 사용 패턴(대부분 수일 이내)과 맞지 않고, 생성 후 30일 기준 삭제 시 만료 직후 데이터가 사라지는 UX 문제 발생
+- 채택 이유 / 트레이드오프: 7일은 실제 사용 패턴 반영. expiresAt 상한 7일 + 종료 후 30일 보관으로 호스트가 결과를 충분히 확인할 수 있는 시간 확보. 30일 이후 결과 영구 소실은 수용 가능한 트레이드오프.
+- 구현:
+  - Poll.create() 팩토리 내 7일 초과 시 POLL_EXPIRY_EXCEEDS_LIMIT 예외 (Rich Entity 패턴)
+  - Poll에 closedAt 컬럼 추가 — 수동 종료 시각 기록. close() 호출 시 설정.
+  - 삭제 기준: COALESCE(closedAt, expiresAt) < now - 30일 (수동 조기 종료 + 자연 만료 통합 처리)
+  - PollCleanupScheduler(@Scheduled 매일 새벽 3시) — VoteRecord → VoteOption → Poll 순 삭제 후 Redis vote:count 키 정리
+
+## [2026-07-15] Rate Limiting 전략 개정 — 토큰 기반 → IP 기반 전환
+- 결정: Rate Limiting 키를 participantToken → 클라이언트 IP로 전환. POST /votes·POST /votes/{shareCode}/vote에 Rate Limit 추가(5회/분).
+- 배경: participantToken 기반은 쿠키 삭제 후 재요청 시 새 토큰 발급으로 Rate Limit 완전 우회 가능. 토큰 없는 첫 요청도 통과시키는 구조적 허점 존재. POST 엔드포인트 2개에 방어선 없음.
+- 대안: Nginx limit_req_zone — 배포 구조 확정 전이므로 보류. Cloudflare — 도메인 구매 필요, 배포 후 재검토.
+- 채택 이유 / 트레이드오프: 기존 Bucket4j + Redis 인프라 재활용, 코드 변경만으로 해결. X-Forwarded-For 마지막 값 추출(ALB가 실제 IP를 항상 뒤에 추가) → 헤더 위조 방어. VPN·공용 NAT 사용자는 버킷 공유되는 구조적 한계는 IP 방식의 수용 가능한 트레이드오프.
+- 배포 시 필수: Nginx `proxy_set_header X-Forwarded-For $remote_addr` 설정 — 미적용 시 getRemoteAddr()가 127.0.0.1 반환되어 모든 요청이 단일 버킷 공유
+
+## [2026-07-15] 배포 구조 확정 — ALB + EC2 단일 인스턴스
+- 결정: ALB(SSL 처리) → EC2 단일 인스턴스(Nginx + Spring Boot + Redis on Docker) → RDS(MySQL) 구성 채택
+- 배경: 포트폴리오 라이브 URL 확보, 비용 최소화, CORS 불필요한 구조 선호
+- 대안: S3+CloudFront(프론트) + EC2(백) — CDN 이점 있으나 도메인 분리로 CORS 설정 필요, 복잡도 상승
+- 채택 이유 / 트레이드오프: Nginx가 정적 파일 서빙 + Spring Boot 프록시를 동시 처리해 same-origin 유지 → CORS 설정 불필요. ElastiCache 대신 EC2 내 Docker Redis로 프리티어 범위 유지. ALB는 유료($6~8/월)이나 고정 도메인·SSL 자동 처리·X-Forwarded-For 제공으로 채택.
+
+## [2026-07-15] 배포 전 보안 점검 결과
+- 결정: 입력 길이 제한(@Size) 추가. 나머지 항목은 현행 유지.
+- 점검 결과:
+  - 에러 응답 정보 유출: handleException이 스택 트레이스 없이 제네릭 메시지만 반환 → 안전
+  - 쿠키 보안: hostToken(HttpOnly·Path 스코프·SameSite=Strict) / participantToken(HttpOnly·SameSite=Lax) → 안전
+  - Actuator: prod에 설정 없어 health만 노출(기본값) → 안전
+  - CORS: same-origin 배포 구조 확정으로 설정 불필요
+  - 입력 길이 제한 누락: title(@Size max=100), options 항목(@Size max=50) 추가 — 미적용 시 대용량 입력이 DB 컬럼 제약에서 DataIntegrityViolationException(500)으로 처리되는 문제
