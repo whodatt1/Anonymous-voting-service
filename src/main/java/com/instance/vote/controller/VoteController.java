@@ -1,5 +1,6 @@
 package com.instance.vote.controller;
 
+import com.instance.vote.annotation.RateLimit;
 import com.instance.vote.dto.VoteRequest;
 import com.instance.vote.service.VoteService;
 import jakarta.validation.Valid;
@@ -14,6 +15,7 @@ public class VoteController {
 
     private final VoteService voteService;
 
+    @RateLimit(limit = 5, windowSeconds = 60) // 1분에 5번
     @PostMapping("/{shareCode}/vote")
     public ResponseEntity<Void> castVote(
             @PathVariable String shareCode,

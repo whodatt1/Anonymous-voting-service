@@ -25,6 +25,7 @@ public class PollController {
 
     private final PollService pollService;
 
+    @RateLimit(limit = 5, windowSeconds = 60) // 스팸 생성 방지
     @PostMapping
     public ResponseEntity<PollResponse.Create> createPoll(@RequestBody @Valid PollRequest.Create request) {
         PollResponse.Create response = pollService.createPoll(request);

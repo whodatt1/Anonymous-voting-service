@@ -35,18 +35,11 @@ public class RateLimitAspect {
         HttpServletRequest request = ((ServletRequestAttributes)
                 RequestContextHolder.currentRequestAttributes()).getRequest();
 
-        // 2. participantToken 쿠키 추출 (없다면 null)
-        String token = extractCookie(request, "participantToken");
+        // 2. IP 추출 후 Redis 키 구성
+        String clientIp = extractClientIp(request);
+        String bucketKey = "rate:" + clientIp + ":" + joinPoint.getSignature().getName();
 
-        // 3. 토큰이 없을 경우 첫 방문 -> Rate Limiting 없이 통과
-        if (token == null) {
-            return joinPoint.proceed();
-        }
-
-        // 4. Redis 키 구성
-        String bucketKey = "rate:" + token + ":" + joinPoint.getSignature().getName();
-
-        // 5. 버킷 설정 - @RateLimit 어노테이션 값 적용
+        // 4. 버킷 설정 - @RateLimit 어노테이션 값 적용
         BucketConfiguration configuration = BucketConfiguration.builder()
                 .addLimit(Bandwidth.builder()
                         .capacity(rateLimit.limit())
@@ -56,11 +49,11 @@ public class RateLimitAspect {
                         .build())
                 .build();
 
-        // 6. ProxyManager로 버킷 조회 (해당 키가 Redis에 없으면 위 설정으로 새로 생성)
+        // 5. ProxyManager로 버킷 조회 (해당 키가 Redis에 없으면 위 설정으로 새로 생성)
         Bucket bucket = rateLimitProxyManager.builder()
                 .build(bucketKey.getBytes(), () -> configuration);
 
-        // 7. 토큰 소비 시도
+        // 6. 토큰 소비 시도
         if (!bucket.tryConsume(1)) {
             throw new BusinessException(ErrorCode.TOO_MANY_REQUESTS);
         }
@@ -68,12 +61,20 @@ public class RateLimitAspect {
         return joinPoint.proceed();
     }
 
-    private String extractCookie(HttpServletRequest request, String name) {
-        if (request.getCookies() == null) return null;
-        for (Cookie cookie : request.getCookies()) {
-            if (name.equals(cookie.getName())) return cookie.getValue();
+    private String extractClientIp(HttpServletRequest request) {
+        String forwarded = request.getHeader("X-Forwarded-For");
+        if (forwarded != null && !forwarded.isBlank()) {
+            // X-Forwarded-For는 클라이언트가 직접 위조할 수 있다.
+            // 예) 공격자가 "X-Forwarded-For: 가짜IP"를 보내면
+            //     ALB가 실제 IP를 뒤에 붙여 "가짜IP, 진짜IP"로 만든다.
+            // ALB는 항상 실제 클라이언트 IP를 맨 뒤에 추가하므로
+            // 마지막 값이 ALB가 보장하는 신뢰할 수 있는 IP다.
+            String[] parts = forwarded.split(",");
+            return parts[parts.length - 1].trim();
         }
-        return null;
+        // X-Forwarded-For가 없는 경우 = Spring에 TCP를 직접 맺은 상대방 IP.
+        // 로컬 개발: 브라우저가 Spring에 직접 붙으므로 127.0.0.1.
+        // ALB가 있으면 X-Forwarded-For가 항상 존재하므로 이 분기에 오지 않는다.
+        return request.getRemoteAddr();
     }
-
 }
