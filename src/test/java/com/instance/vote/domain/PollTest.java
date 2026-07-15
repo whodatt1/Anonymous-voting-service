@@ -6,6 +6,7 @@ import org.junit.jupiter.api.Test;
 
 import java.time.LocalDateTime;
 
+import static org.assertj.core.api.AssertionsForClassTypes.assertThat;
 import static org.assertj.core.api.AssertionsForClassTypes.assertThatThrownBy;
 
 public class PollTest {
@@ -46,5 +47,23 @@ public class PollTest {
         assertThatThrownBy(() -> poll.validateNotClosed())
                 .isInstanceOf(BusinessException.class)
                 .hasFieldOrPropertyWithValue("errorCode", ErrorCode.POLL_ALREADY_CLOSED);
+    }
+
+    @Test
+    void 만료_기한이_7일을_초과하면_투표를_생성할_수_없다() {
+        assertThatThrownBy(() ->
+            Poll.create("테스트 투표", "dummyCode", "dummyToken", LocalDateTime.now().plusDays(8))
+        )
+                .isInstanceOf(BusinessException.class)
+                .hasFieldOrPropertyWithValue("errorCode", ErrorCode.POLL_EXPIRY_EXCEEDS_LIMIT);
+    }
+
+    @Test
+    void 투표를_닫으면_closeAt이_설정된다() {
+        Poll poll = Poll.create("테스트 투표",  "dummyCode", "dummyToken", LocalDateTime.now().plusDays(1));
+        poll.close();
+
+        assertThat(poll.getClosedAt()).isNotNull();
+        assertThat(poll.getClosedAt()).isBefore(LocalDateTime.now().plusSeconds(1));
     }
 }

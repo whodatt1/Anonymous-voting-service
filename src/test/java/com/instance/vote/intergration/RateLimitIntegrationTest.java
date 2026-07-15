@@ -6,7 +6,6 @@ import com.instance.vote.repository.PollRepository;
 import com.instance.vote.repository.VoteOptionRepository;
 import com.instance.vote.repository.VoteRecordRepository;
 import com.instance.vote.service.PollService;
-import jakarta.servlet.http.Cookie;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -81,34 +80,28 @@ public class RateLimitIntegrationTest {
     }
 
     @Test
-    void 쿠키_없으면_RateLimiting_적용_안됨() throws Exception {
-        mockMvc.perform(get("/votes/{shareCode}", shareCode))
-                .andExpect(status().isOk());
-    }
-
-    @Test
-    void 같은_토큰_30회_성공_후_31번째_429() throws Exception {
+    void 같은_IP로_30회_성공_후_31번째_429() throws Exception {
         for (int i = 0; i < 30; i++) {
             mockMvc.perform(get("/votes/{shareCode}", shareCode)
-                    .cookie(new Cookie("participantToken", "token-abc")))
+                    .with(req -> { req.setRemoteAddr("1.2.3.4"); return req; }))
                     .andExpect(status().isOk());
         }
 
         mockMvc.perform(get("/votes/{shareCode}", shareCode)
-                .cookie(new Cookie("participantToken", "token-abc")))
+                .with(req -> { req.setRemoteAddr("1.2.3.4"); return req; }))
                 .andExpect(status().isTooManyRequests());
     }
 
     @Test
-    void 다른_토큰은_독립된_버킷() throws Exception {
+    void 다른_IP는_독립된_버킷() throws Exception {
         for (int i = 0; i < 30; i++) {
             mockMvc.perform(get("/votes/{shareCode}", shareCode)
-                    .cookie(new Cookie("participantToken", "token-a")))
+                    .with(req -> { req.setRemoteAddr("1.2.3.4"); return req; }))
                     .andExpect(status().isOk());
         }
 
         mockMvc.perform(get("/votes/{shareCode}", shareCode)
-                .cookie(new Cookie("participantToken", "token-b")))
+                .with(req -> { req.setRemoteAddr("5.6.7.8"); return req; }))
                 .andExpect(status().isOk());
     }
 }
