@@ -5,6 +5,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.util.Collection;
 import java.util.List;
 
 public interface VoteRecordRepository extends JpaRepository<VoteRecord, Long> {
@@ -18,4 +19,6 @@ public interface VoteRecordRepository extends JpaRepository<VoteRecord, Long> {
 
     // 토큰 투표 여부 확인을 위하여 추가
     boolean existsByPoll_IdAndParticipantToken(Long pollId, String participantToken);
+
+    void deleteByPollIdIn(Collection<Long> pollIds);
 }
