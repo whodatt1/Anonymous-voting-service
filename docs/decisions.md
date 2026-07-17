@@ -313,8 +313,8 @@
 - 배경: k6 부하 테스트(SSE 150개 ramping + REST 30 req/s 병렬)로 Phase 0 스레드 점유 가설 검증
 - 실험 결과:
   - Tomcat 사용 중인 스레드: SSE 150개 연결 상태에서도 ≈0 유지 (SseEmitter는 AsyncContext/NIO 처리 — 스레드 비점유 구조)
-  - HTTP 응답시간: SSE 0→150개 전 구간에서 p90=19.65ms / p95=20.96ms, 거의 변화 없음
-  - http_req_failed: 0.00% (45,161건 전량 성공)
+  - HTTP 응답시간: SSE 0→150개 전 구간에서 p90=25.7ms / p95=28.4ms, 거의 변화 없음
+  - http_req_failed: 0.00% (60,840건 전량 성공)
   - 테스트 종료 시 Tomcat 스레드 순간 스파이크(75까지) — 150개 SSE 일제히 끊길 때 연결 종료 처리가 몰린 정상 현상
 - 가설 폐기 근거: SseEmitter는 서블릿 3.1 AsyncContext로 처리되어 응답을 유보한 채 Tomcat 스레드를 즉시 반환. "SSE 누적 → 스레드 고갈 → REST 응답 지연"은 구조적으로 발생하지 않음.
 - 실제 병목 가능 지점: NIO 커넥션 수(Tomcat max-connections 기본 8192, SSE 연결 1개당 1개 소비), JVM 힙(emitter 객체 누적), OS 파일 디스크립터 한도
