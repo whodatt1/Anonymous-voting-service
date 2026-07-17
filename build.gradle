@@ -4,7 +4,7 @@ plugins {
     id 'io.spring.dependency-management' version '1.1.7'
 }
 
-def queryDslVersion = '5.1.0' // Spring Boot BOM 밖에서 관리되므로 버전을 직접 명시
+// def queryDslVersion = '5.1.0' // Spring Boot BOM 밖에서 관리되므로 버전을 직접 명시
 group = 'com.instance'
 version = '0.0.1-SNAPSHOT'
 description = 'vote'
@@ -57,29 +57,28 @@ dependencies {
     testImplementation 'org.testcontainers:junit-jupiter' // JUnit5에서 @Testcontainers, @Container 어노테이션 사용 가능
     testImplementation 'org.testcontainers:mysql' // MySQL 전용 컨테이너 모듈
 
-    // QueryDSL
-    implementation "com.querydsl:querydsl-jpa:${queryDslVersion}:jakarta"
-    annotationProcessor "com.querydsl:querydsl-apt:${queryDslVersion}:jakarta"
-    annotationProcessor "jakarta.annotation:jakarta.annotation-api"
-    annotationProcessor "jakarta.persistence:jakarta.persistence-api"
+    // QueryDSL (미사용 — 필요 시 주석 해제)
+//    implementation "com.querydsl:querydsl-jpa:${queryDslVersion}:jakarta"
+//    annotationProcessor "com.querydsl:querydsl-apt:${queryDslVersion}:jakarta"
+//    annotationProcessor "jakarta.annotation:jakarta.annotation-api"
+//    annotationProcessor "jakarta.persistence:jakarta.persistence-api"
 }
 
 tasks.named('test') {
     useJUnitPlatform()
 }
 
-def generated = 'src/main/generated' // QClass가 생성될 폴더 경로
-
-sourceSets {
-    main.java.srcDirs += [generated] // Gradle과 IntelliJ가 이 폴더를 소스 루트로 인식하도록 등록
-}
-
-tasks.withType(JavaCompile) {
-    // 모든 Java 컴파일 태스크에 대해 QClass 출력 경로를 위에서 정의한 경로로 지정
-    options.getGeneratedSourceOutputDirectory().set(file(generated))
-}
-
-clean.doLast {
-    // ./gradlew clean 실행 시 generated 폴더도 함께 삭제
-    file(generated).deleteDir()
-}
+// QueryDSL QClass 생성 설정 (미사용 — 필요 시 주석 해제)
+//def generated = 'src/main/generated'
+//
+//sourceSets {
+//    main.java.srcDirs += [generated]
+//}
+//
+//tasks.withType(JavaCompile) {
+//    options.getGeneratedSourceOutputDirectory().set(file(generated))
+//}
+//
+//clean.doLast {
+//    file(generated).deleteDir()
+//}

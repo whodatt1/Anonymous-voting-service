@@ -1,18 +1,19 @@
 import { useState, useEffect } from 'react'
-import { useParams } from 'react-router-dom'
+import { useParams, useNavigate } from 'react-router-dom'
 import { getHostPoll, closePoll } from '../../api/poll'
 import { useSSE } from '../../hooks/useSSE'
 
 export default function Manage() {
   const { shareCode } = useParams()
+  const navigate = useNavigate()
   const { counts, connected } = useSSE(shareCode)
 
   const [poll, setPoll] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
+  const [showNewPollModal, setShowNewPollModal] = useState(false)
 
   useEffect(() => {
-    // TODO: api/poll.js의 getHostPoll 호출 후 setPoll
     const fetch = async () => {
       try {
         const result = await getHostPoll(shareCode);
@@ -28,7 +29,6 @@ export default function Manage() {
 
   const handleClose = async () => {
     try {
-      // TODO: api/poll.js의 closePoll 호출
       const result = await closePoll(shareCode)
       setPoll(prev => ({ ...prev, status: 'CLOSED' }))
     } catch (err) {
@@ -93,6 +93,74 @@ export default function Manage() {
           <p className="text-sm text-neutral-300 font-mono break-all">
             {window.location.origin}/votes/{shareCode}
           </p>
+        </div>
+
+        <button
+          onClick={() => setShowNewPollModal(true)}
+          className="mt-4 w-full py-3 rounded-xl border border-dashed border-neutral-700 text-neutral-400 hover:border-violet-600 hover:text-violet-400 text-sm transition"
+        >
+          + 새 투표 만들기
+        </button>
+
+        <div className="mt-4 px-4 py-3 rounded-xl border-l-2 border-blue-600 bg-blue-950/30">
+          <p className="text-xs text-neutral-400 leading-relaxed">
+            <span className="text-blue-400 font-semibold">참고</span> &nbsp;실시간 연결은 하나의 창에서만 유지됩니다.
+            &nbsp;<span className="text-neutral-300">연결 중...</span>으로 표시된다면 새로고침을 해보세요.
+          </p>
+        </div>
+      </div>
+
+      {showNewPollModal && (
+        <NewPollModal
+          shareCode={shareCode}
+          onConfirm={() => navigate('/')}
+          onCancel={() => setShowNewPollModal(false)}
+        />
+      )}
+    </div>
+  )
+}
+
+function NewPollModal({ shareCode, onConfirm, onCancel }) {
+  const manageUrl = `${window.location.origin}/votes/${shareCode}/manage`
+  const [copied, setCopied] = useState(false)
+
+  const handleCopy = () => {
+    navigator.clipboard.writeText(manageUrl)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 2000)
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center px-4 z-50">
+      <div className="w-full max-w-sm bg-neutral-900 border border-neutral-700 rounded-2xl p-6">
+        <h2 className="text-lg font-semibold text-white mb-2">새 투표 만들기</h2>
+        <p className="text-sm text-neutral-400 mb-4">
+          관리 페이지는 <span className="text-neutral-200">이 기기에서만</span> 접근할 수 있습니다.<br />
+          이동 전에 관리 URL을 저장해두세요.
+        </p>
+        <div className="flex items-center gap-2 mb-6 p-3 rounded-xl bg-neutral-800 border border-neutral-700">
+          <p className="flex-1 text-xs text-neutral-300 font-mono break-all">{manageUrl}</p>
+          <button
+            onClick={handleCopy}
+            className="shrink-0 px-3 py-1.5 rounded-lg bg-neutral-700 hover:bg-neutral-600 text-xs text-neutral-300 transition"
+          >
+            {copied ? '복사됨 ✓' : '복사'}
+          </button>
+        </div>
+        <div className="flex gap-3">
+          <button
+            onClick={onCancel}
+            className="flex-1 py-2.5 rounded-xl border border-neutral-700 text-neutral-300 hover:bg-neutral-800 text-sm transition"
+          >
+            취소
+          </button>
+          <button
+            onClick={onConfirm}
+            className="flex-1 py-2.5 rounded-xl bg-violet-600 hover:bg-violet-500 text-white font-medium text-sm transition"
+          >
+            이동하기
+          </button>
         </div>
       </div>
     </div>
