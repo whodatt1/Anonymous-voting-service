@@ -9,7 +9,7 @@
 
 | 영역 | 기술 |
 |---|---|
-| Backend | Java 21, Spring Boot 3.5, Spring MVC, JPA, QueryDSL |
+| Backend | Java 21, Spring Boot 3.5, Spring MVC, JPA |
 | Database | MySQL 8.4, Redis 8.0 |
 | Frontend | React, Vite, Tailwind CSS |
 | Infra | Docker, Docker Compose |
