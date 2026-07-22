@@ -362,3 +362,19 @@
   - Actuator: prod에 설정 없어 health만 노출(기본값) → 안전
   - CORS: same-origin 배포 구조 확정으로 설정 불필요
   - 입력 길이 제한 누락: title(@Size max=100), options 항목(@Size max=50) 추가 — 미적용 시 대용량 입력이 DB 컬럼 제약에서 DataIntegrityViolationException(500)으로 처리되는 문제
+
+## [2026-07-19] 배포 구조 변경 — ALB 제외, Nginx SSL 직접 처리
+- 결정: [2026-07-15] ALB 채택 결정을 철회. Nginx에서 SSL 직접 처리(Let's Encrypt/Certbot)로 변경.
+- 배경: ALB 없이도 Nginx가 첫 번째 프록시로서 X-Forwarded-For를 직접 주입하므로 클라이언트 IP 추적에 문제 없음
+- 최종 배포 구조: EC2 단일 인스턴스(Nginx + Spring Boot + Docker Redis) → RDS(MySQL)
+- IP 추출 로직: X-Forwarded-For 첫 번째 값 추출(Nginx가 $remote_addr로 헤더 교체하므로 위조 불가) — 구현 완료
+- 트레이드오프: ALB $6~8/월 비용 절감. 단, 고정 Elastic IP 또는 도메인 직접 관리 필요.
+
+## [2026-07-22] 부하 테스트 2차 실험 — NIO 커넥션 메트릭 추가 및 ramp-down 대조 실험 결과
+- 배경: 1차 실험에서 테스트 종료 시 스레드 스파이크 원인이 "150개 동시 종료 아티팩트"인지 실제 동작인지 미결 상태였음. Grafana에 NIO 커넥션 수 패널(tomcat_connections_current_connections) 추가 후 ramp-down 포함 2차 실험 진행.
+- 실험 결과:
+  - NIO 커넥션 수: SSE 활성 커넥션 수와 동일 궤적으로 움직임 → SSE 1개 = NIO 커넥션 1개 구조적 확인
+  - ramp-down 대조 실험: 점진적 종료에서도 스레드 스파이크 발생 → 동시 종료 아티팩트가 주된 원인이 아님
+  - Tomcat 사용 중인 스레드: 전 구간 ≈0 유지 (1차 실험 재확인)
+  - k6: checks 100% (25,202/25,202), http_req_failed 0.00% (35,718건), p90=27.18ms / p95=30.01ms
+- 결론: 스파이크는 Tomcat이 SSE 연결 종료 콜백(onCompletion/onError) 처리 시 스레드 풀을 일시 사용하는 실제 동작. 동시 종료 시 집중 발생, 점진 종료 시 분산 발생하는 차이는 있으나 양쪽 모두 발생함. 사용 중인 스레드(실제 요청 처리)는 어떤 구간에서도 영향 없음 — Phase 2 전환 기준(NIO 커넥션 8192 근접)은 유지.
