@@ -74,8 +74,15 @@ export function setup() {
         .toISOString()
         .slice(0, 19);
 
+    // [setup Rate Limiting 우회]
+    // POST /votes도 IP당 분당 5회 제한이 걸려 있다.
+    // setup()은 VU 컨텍스트 밖에서 단일 스레드로 실행되므로 __VU/__ITER 변수를 사용할 수 없다.
+    // 대신 루프 인덱스 i를 활용해 요청마다 고유한 가상 IP(10.0.0.0 ~ 10.0.0.149)를 주입한다.
     for (let i = 0; i < POLL_COUNT; i++) {
+        const setupIp = `10.0.0.${i}`;
+
         // 1. 투표 생성 (POST /votes)
+        //    X-Forwarded-For로 가상 IP 주입 → 투표마다 독립 Rate Limiting 버킷 사용
         const createRes = http.post(
             `${BASE_URL}/votes`,
             JSON.stringify({
@@ -83,7 +90,7 @@ export function setup() {
                 options: ['option-A', 'option-B'],
                 expiresAt: expiresAt,
             }),
-            { headers: { 'Content-Type': 'application/json' } }
+            { headers: { 'Content-Type': 'application/json', 'X-Forwarded-For': setupIp } }
         );
 
         if (createRes.status !== 201) {
@@ -104,7 +111,7 @@ export function setup() {
         // 4. GET /votes/{shareCode}/host로 optionId 목록 조회
         //    투표 제출(POST /votes/{shareCode}/vote) 시 optionId가 필요하므로 미리 수집
         const detailRes = http.get(`${BASE_URL}/votes/${shareCode}/host`, {
-            headers: { Cookie: `hostToken=${hostToken}` },
+            headers: { Cookie: `hostToken=${hostToken}`, 'X-Forwarded-For': setupIp },
         });
         const detail = JSON.parse(detailRes.body);
 
@@ -159,13 +166,34 @@ export function sseScenario(data) {
 // [participantToken 처리]
 // GET /votes/{shareCode} 최초 접속 시 Set-Cookie로 participantToken이 발급된다.
 // 매 iteration마다 새 토큰을 발급받아 사용 → 각 반복이 새로운 참여자 1명을 시뮬레이션
+//
+// [Rate Limiting 우회 — X-Forwarded-For IP 스푸핑]
+// 부하 테스트 이후 Rate Limiting이 IP 기반으로 전환되었다.
+//   - GET /votes/{shareCode}  : IP당 분당 30회
+//   - POST /votes/{shareCode}/vote : IP당 분당 5회
+// k6는 단일 로컬 IP(127.0.0.1)에서 요청을 보내므로 모든 VU가 버킷을 공유해 즉시 429가 발생한다.
+//
+// 해결: 각 요청에 X-Forwarded-For 헤더로 가상 IP를 주입한다.
+//   - `10.{VU번호}.{이터레이션번호 % 256}.1` 형태로 VU + 이터레이션 조합마다 다른 IP 부여
+//   - 로컬 환경(Nginx 없음)에서 앱은 이 헤더의 첫 번째 값을 클라이언트 IP로 읽으므로
+//     각 요청이 독립된 Rate Limiting 버킷을 사용하게 된다.
+//   - maxVUs=50, __ITER 256단계 → 최대 12,800개의 고유 IP 조합 → 실질적으로 제한 미도달
+//
+// ※ 프로덕션(Nginx 있음)에서는 Nginx가 $remote_addr로 헤더를 교체하므로 이 우회법은 동작하지 않는다.
+//   부하 테스트 전용 로컬 편법이다.
 export function restScenario(data) {
     const poll = data.polls[__VU % data.polls.length];
 
+    // VU 번호(__VU)와 이터레이션 번호(__ITER)를 조합해 요청마다 고유한 가상 IP 생성
+    // __VU  : 이 VU에 부여된 고유 번호 (1~maxVUs, 시나리오 전체에서 고정)
+    // __ITER: 이 VU가 현재까지 완료한 이터레이션 수 (0부터 증가)
+    const clientIp = `10.${__VU}.${__ITER % 256}.1`;
+
     // 1. 투표 조회 — GET /votes/{shareCode}
-    //    주의: @RateLimit(limit=30, windowSeconds=60) 적용 엔드포인트
-    //    k6가 단일 IP에서 요청을 보내므로 Rate Limit에 걸릴 수 있다
-    const getRes = http.get(`${BASE_URL}/votes/${poll.shareCode}`);
+    //    X-Forwarded-For로 가상 IP 주입 → Rate Limiting(30회/분) 버킷 분리
+    const getRes = http.get(`${BASE_URL}/votes/${poll.shareCode}`, {
+        headers: { 'X-Forwarded-For': clientIp },
+    });
     check(getRes, { '투표 조회 200': (r) => r.status === 200 });
 
     // 2. Set-Cookie에서 participantToken 추출
@@ -175,6 +203,7 @@ export function restScenario(data) {
 
     // 3. 투표 제출 — POST /votes/{shareCode}/vote
     //    optionIds 중 무작위로 선택하여 제출
+    //    GET과 동일한 가상 IP 사용 → Rate Limiting(5회/분) 버킷도 분리됨
     const optionId = poll.optionIds[Math.floor(Math.random() * poll.optionIds.length)];
     const voteRes = http.post(
         `${BASE_URL}/votes/${poll.shareCode}/vote`,
@@ -183,6 +212,7 @@ export function restScenario(data) {
             headers: {
                 'Content-Type': 'application/json',
                 Cookie: `participantToken=${participantToken}`,
+                'X-Forwarded-For': clientIp,
             },
         }
     );
