@@ -1,14 +1,42 @@
 spring:
   datasource:
-    url: ${DB_URL}
-    username: ${DB_USERNAME}
-    password: ${DB_PASSWORD}
+    # url, username, password는 docker-compose.prod.yml에서 환경변수로 주입됨
+    # SPRING_DATASOURCE_URL → spring.datasource.url 자동 바인딩
+    # SPRING_DATASOURCE_USERNAME → spring.datasource.username 자동 바인딩
+    # SPRING_DATASOURCE_PASSWORD → spring.datasource.password 자동 바인딩
     driver-class-name: com.mysql.cj.jdbc.Driver
+    hikari:
+      # depends_on + healthcheck로 MySQL 준비를 기다리지만,
+      # 혹시 연결 실패 시 최대 30초까지 재시도 (안전망)
+      connection-timeout: 30000
+      # 연결 풀 최대 크기: t2.micro 환경에서 커넥션을 많이 열면 메모리 부담
+      maximum-pool-size: 5
+
   jpa:
     hibernate:
+      # validate: 앱 시작 시 엔티티와 DB 스키마가 일치하는지만 확인
       ddl-auto: validate
+    # 배포 환경에서 SQL 로그는 불필요 + 성능 저하 유발
     show-sql: false
+
   data:
     redis:
-      host: ${REDIS_HOST}
-      port: ${REDIS_PORT}
+      # SPRING_DATA_REDIS_HOST → spring.data.redis.host 자동 바인딩
+      # port는 기본값(6379)이므로 별도 설정 불필요
+      port: 6379
+
+# 배포 환경 Actuator: Prometheus 없으므로 health만 노출
+# health: 로드밸런서나 외부 헬스체크에서 서비스 상태 확인용
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+  metrics:
+    tags:
+      application: ${spring.application.name}
+
+logging:
+  # 배포에서는 INFO 레벨만 출력 (DEBUG는 너무 많은 로그로 디스크 낭비)
+  level:
+    root: INFO

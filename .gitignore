@@ -37,6 +37,7 @@ out/
 .vscode/
 
 .env
+.env.prod
 src/main/generated
 logs/
 *.log
