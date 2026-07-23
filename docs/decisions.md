@@ -378,3 +378,11 @@
   - Tomcat 사용 중인 스레드: 전 구간 ≈0 유지 (1차 실험 재확인)
   - k6: checks 100% (25,202/25,202), http_req_failed 0.00% (35,718건), p90=27.18ms / p95=30.01ms
 - 결론: 스파이크는 Tomcat이 SSE 연결 종료 콜백(onCompletion/onError) 처리 시 스레드 풀을 일시 사용하는 실제 동작. 동시 종료 시 집중 발생, 점진 종료 시 분산 발생하는 차이는 있으나 양쪽 모두 발생함. 사용 중인 스레드(실제 요청 처리)는 어떤 구간에서도 영향 없음 — Phase 2 전환 기준(NIO 커넥션 8192 근접)은 유지.
+
+## [2026-07-23] 배포 구조 최종 확정 — Docker MySQL + 경량화 전략
+- 결정: RDS 제외 → EC2 내 Docker MySQL. Prometheus/Grafana 배포 제외. 멀티스테이지 빌드 + 컨테이너 메모리 제한 적용.
+- 배경: 신규 AWS 계정 $100 크레딧(약 185일). RDS 포함 시 월 ~$25 → 4개월 소진. EC2 단독 시 월 ~$8-10 → 크레딧 내 여유롭게 운영 가능.
+- 대안: RDS 유지(크레딧 조기 소진) / Prometheus+Grafana 포함(t2.micro 1GB에서 OOM 위험)
+- 채택 이유 / 트레이드오프: 크레딧 6개월 안정 운영 우선. Grafana 시연은 로컬로 대체. Docker MySQL은 EC2 종료 시 데이터 유실 위험 있으나 볼륨 마운트로 완화.
+- 메모리 할당: Spring Boot -Xmx256m / MySQL innodb_buffer_pool_size=128M / Redis maxmemory 64mb
+- 파일 분리: 로컬용 docker-compose.yml 유지 / 배포용 docker-compose.prod.yml 별도 생성

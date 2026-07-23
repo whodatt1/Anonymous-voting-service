@@ -1,0 +1,35 @@
+# ─── Stage 1: React 빌드 ─────────────────────────────────────────────────────
+# node:20-alpine = Alpine Linux + Node.js 20이 설치된 이미지
+# AS frontend-builder = 이 스테이지에 이름 붙임 (Stage 2에서 결과물 참조용)
+FROM node:20-alpine AS frontend-builder
+WORKDIR /app
+
+# package.json, package-lock.json만 먼저 복사 (캐시 레이어 최적화)
+# 소스코드가 바뀌어도 패키지 목록이 안 바뀌면 npm ci 레이어를 재사용
+COPY frontend/package*.json ./
+
+# npm ci: package-lock.json 기준으로 의존성을 정확히 설치 (npm install보다 엄격하고 빠름)
+RUN npm ci
+
+# 나머지 소스코드 전체 복사
+COPY frontend/ ./
+
+# React 소스코드를 브라우저가 읽을 수 있는 정적 파일(HTML/CSS/JS)로 변환
+# 결과물은 /app/dist/ 폴더에 생성됨
+RUN npm run build
+
+# ─── Stage 2: Nginx + 정적 파일 ──────────────────────────────────────────────
+# nginx:alpine = Alpine Linux + Nginx가 설치된 경량 이미지
+FROM nginx:alpine
+
+# Stage 1에서 빌드된 React 결과물(dist/)을 Nginx 정적 파일 서빙 경로로 복사
+# /usr/share/nginx/html = Nginx가 기본으로 정적 파일을 찾는 경로
+COPY --from=frontend-builder /app/dist /usr/share/nginx/html
+
+# Nginx 동작 방식을 정의한 설정 파일을 컨테이너 안으로 복사
+# /etc/nginx/nginx.conf = Nginx가 시작 시 읽는 기본 설정 경로
+COPY nginx/nginx.conf /etc/nginx/nginx.conf
+
+# 이 컨테이너가 80(HTTP), 443(HTTPS) 포트를 사용한다고 선언
+# 실제 포트 개방은 docker-compose에서 ports 설정으로 처리함
+EXPOSE 80 443

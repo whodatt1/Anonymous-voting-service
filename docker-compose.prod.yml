@@ -1,0 +1,136 @@
+# 배포 전용 docker-compose 파일
+# 사용법: docker-compose -f docker-compose.prod.yml up -d
+# 로컬용(docker-compose.yml)과 달리 Spring Boot/Nginx가 컨테이너로 포함되고
+# Prometheus/Grafana는 제외됨 (t2.micro 1GB RAM 경량화)
+
+services:
+
+  # ── MySQL ────────────────────────────────────────────────────────────────────
+  mysql:
+    image: mysql:8.4
+    container_name: vote-mysql
+
+    # unless-stopped: EC2 재부팅 시 자동으로 컨테이너를 다시 시작
+    restart: unless-stopped
+
+    # ${변수명}: EC2 서버에 있는 .env.prod 파일에서 값을 읽어옴
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MYSQL_DATABASE: ${MYSQL_DATABASE}
+      MYSQL_USER: ${MYSQL_USER}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+
+    volumes:
+      - mysql-data:/var/lib/mysql
+
+    # MySQL 서버 시작 옵션
+    # >: YAML 멀티라인 문자열 (줄바꿈을 공백으로 처리)
+    # innodb-buffer-pool-size=128M: InnoDB가 데이터를 메모리에 캐시하는 공간
+    # t2.micro 1GB 환경에서 MySQL이 RAM을 무제한 쓰지 못하도록 제한
+    command: >
+      --character-set-server=utf8mb4
+      --collation-server=utf8mb4_unicode_ci
+      --innodb-buffer-pool-size=128M
+
+    # 컨테이너가 사용할 수 있는 최대 메모리 300MB로 제한
+    # 이 설정이 없으면 컨테이너가 호스트 RAM을 무제한으로 점유하려 함
+    # MySQL이 실제로 요청을 받을 준비가 됐는지 주기적으로 확인
+    # test: mysqladmin ping 명령으로 MySQL 서버 응답 여부 체크
+    # interval: 10초마다 체크 / timeout: 5초 안에 응답 없으면 실패
+    # retries: 5번 연속 실패하면 unhealthy 판정
+    healthcheck:
+      test: [ "CMD", "mysqladmin", "ping", "-h", "localhost", "--silent" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    deploy:
+      resources:
+        limits:
+          memory: 300m
+
+  # ── Redis ────────────────────────────────────────────────────────────────────
+  redis:
+    image: redis:8.0
+    container_name: vote-redis
+    restart: unless-stopped
+    volumes:
+      - redis-data:/data
+
+    # --appendonly yes: AOF 방식으로 모든 쓰기 명령을 디스크에 기록 (영속성)
+    # --maxmemory 64mb: Redis가 사용할 수 있는 최대 메모리 64MB
+    # --maxmemory-policy allkeys-lru: 메모리가 꽉 차면 가장 오래 사용 안 된 키부터 삭제
+    #   → 투표 집계 키(자주 접근)는 삭제 우선순위가 낮아 보존됨
+    #   → Rate Limiting 버킷 키(TTL 있음)는 만료되면 자동 삭제
+    command: >
+      redis-server
+      --appendonly yes
+      --maxmemory 64mb
+      --maxmemory-policy allkeys-lru
+    deploy:
+      resources:
+        limits:
+          memory: 100m
+
+  # ── Spring Boot 앱 ───────────────────────────────────────────────────────────
+  app:
+    # image 대신 build: 프로젝트 루트의 Dockerfile로 직접 이미지를 빌드
+    build:
+      context: .          # Dockerfile을 찾을 기준 경로 (프로젝트 루트)
+      dockerfile: Dockerfile
+    container_name: vote-app
+    restart: unless-stopped
+
+    environment:
+      # Spring Boot가 application-prod.yaml을 로드하도록 지정
+      SPRING_PROFILES_ACTIVE: prod
+
+      # 컨테이너끼리는 서비스 이름(mysql, redis)으로 통신
+      # "mysql"은 위에 선언한 mysql 서비스의 컨테이너 이름이 됨
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/${MYSQL_DATABASE}
+      SPRING_DATASOURCE_USERNAME: ${MYSQL_USER}
+      SPRING_DATASOURCE_PASSWORD: ${MYSQL_PASSWORD}
+      SPRING_DATA_REDIS_HOST: redis
+
+    # depends_on + condition: 단순히 "컨테이너 시작"이 아니라 "실제 준비 완료"를 기다림
+    # mysql: service_healthy → 아래 mysql의 healthcheck가 통과된 후에 app 시작
+    # redis: service_started → Redis는 healthcheck 없이 시작만 확인
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    deploy:
+      resources:
+        limits:
+          memory: 300m
+
+    # app은 호스트에 포트를 노출하지 않음 (보안)
+    # 외부에서는 nginx를 통해서만 접근 가능
+    # nginx → app:8080 으로 컨테이너 내부에서만 통신
+
+  # ── Nginx ────────────────────────────────────────────────────────────────────
+  nginx:
+    build:
+      context: .
+      dockerfile: Dockerfile.nginx    # React 빌드 + Nginx 설정이 담긴 Dockerfile
+    container_name: vote-nginx
+    restart: unless-stopped
+
+    # 호스트의 80(HTTP), 443(HTTPS) 포트를 컨테이너의 80, 443으로 연결
+    # 외부에서 들어오는 모든 요청의 진입점
+    # mysql/redis/app은 포트를 노출하지 않고 nginx만 노출
+    ports:
+      - "80:80"
+      - "443:443"
+
+    # app 컨테이너가 시작된 후 nginx 시작
+    # nginx가 proxy_pass http://app:8080 으로 연결하므로 app이 먼저 있어야 함
+    depends_on:
+      - app
+
+# Named Volume 선언
+# Docker가 관리하는 영속 스토리지 — 컨테이너가 삭제돼도 데이터 유지
+# EC2의 EBS(하드디스크)에 실제로 저장됨
+volumes:
+  mysql-data:
+  redis-data:
