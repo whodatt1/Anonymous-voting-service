@@ -9,9 +9,8 @@ build/
 # Gradle 캐시 (이미지 안에서 새로 받으므로 불필요)
 .gradle/
 
-# 프론트엔드 전체 (Dockerfile.nginx에서 별도로 복사하므로 Spring Boot 빌드에 불필요)
 # node_modules가 수백 MB라 여기서 제외하지 않으면 빌드 컨텍스트가 엄청나게 커짐
-frontend/
+frontend/node_modules/
 
 # IntelliJ 프로젝트 설정 파일 (빌드와 무관)
 *.iml
