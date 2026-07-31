@@ -90,6 +90,7 @@ services:
       SPRING_DATASOURCE_USERNAME: ${MYSQL_USER}
       SPRING_DATASOURCE_PASSWORD: ${MYSQL_PASSWORD}
       SPRING_DATA_REDIS_HOST: redis
+      SPRING_JPA_HIBERNATE_DDL_AUTO: ${SPRING_JPA_HIBERNATE_DDL_AUTO}
 
     # depends_on + condition: 단순히 "컨테이너 시작"이 아니라 "실제 준비 완료"를 기다림
     # mysql: service_healthy → 아래 mysql의 healthcheck가 통과된 후에 app 시작
