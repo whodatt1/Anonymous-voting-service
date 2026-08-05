@@ -15,7 +15,7 @@ import java.time.Duration;
 import java.time.LocalDateTime;
 
 @RestController
-@RequestMapping("/votes")
+@RequestMapping("/api/votes")
 @RequiredArgsConstructor
 public class SseController {
 
