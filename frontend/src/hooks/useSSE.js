@@ -7,6 +7,7 @@ import { useState, useEffect } from 'react'
 export function useSSE(shareCode) {
   const [counts, setCounts] = useState({})
   const [connected, setConnected] = useState(false)
+  const [disconnectReason, setDisconnectReason] = useState(null)
 
   useEffect(() => {
     // TODO: EventSource 연결 구현
@@ -14,7 +15,10 @@ export function useSSE(shareCode) {
     const eventSource = new EventSource(`/votes/${shareCode}/stream`)
 
     // 2. 세가지 핸들러 등록
-    eventSource.onopen = () => { setConnected(true) }
+    eventSource.onopen = () => { 
+      setConnected(true)
+      setDisconnectReason(null) // 재연결 시 reason 초기화
+    }
 
     eventSource.onmessage = (event) => {
       const options = JSON.parse(event.data)
@@ -32,6 +36,7 @@ export function useSSE(shareCode) {
     // close() 없이 그냥 두면 서버가 complete()해도 브라우저가 재연결을 시도 → 핑퐁 현상 발생
     eventSource.addEventListener('close', () => {
       setConnected(false)
+      setDisconnectReason('replaced')
       eventSource.close()
     })
 
@@ -39,5 +44,5 @@ export function useSSE(shareCode) {
     return () => eventSource.close() // UseEffect의 return이 cleanup
   }, [shareCode])
 
-  return { counts, connected }
+  return { counts, connected, disconnectReason }
 }

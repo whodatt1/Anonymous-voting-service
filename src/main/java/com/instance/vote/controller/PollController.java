@@ -47,6 +47,7 @@ public class PollController {
                 .body(response);
     }
 
+    @RateLimit(limit = 10, windowSeconds = 60)
     @GetMapping("/{shareCode}/host")
     public ResponseEntity<PollResponse.Detail> getHostPoll(
             @PathVariable String shareCode,

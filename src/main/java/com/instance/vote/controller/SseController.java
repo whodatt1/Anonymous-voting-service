@@ -1,5 +1,6 @@
 package com.instance.vote.controller;
 
+import com.instance.vote.annotation.RateLimit;
 import com.instance.vote.dto.PollResponse;
 import com.instance.vote.event.SseEmitterManager;
 import com.instance.vote.service.PollService;
@@ -21,6 +22,7 @@ public class SseController {
     private final PollService pollService;
     private final SseEmitterManager sseEmitterManager;
 
+    @RateLimit(limit = 5, windowSeconds = 60)
     @GetMapping(value = "/{shareCode}/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     public ResponseEntity<SseEmitter> stream(
             @PathVariable String shareCode,
