@@ -82,12 +82,12 @@ public class RateLimitIntegrationTest {
     @Test
     void 같은_IP로_30회_성공_후_31번째_429() throws Exception {
         for (int i = 0; i < 30; i++) {
-            mockMvc.perform(get("/votes/{shareCode}", shareCode)
+            mockMvc.perform(get("/api/votes/{shareCode}", shareCode)
                     .with(req -> { req.setRemoteAddr("1.2.3.4"); return req; }))
                     .andExpect(status().isOk());
         }
 
-        mockMvc.perform(get("/votes/{shareCode}", shareCode)
+        mockMvc.perform(get("/api/votes/{shareCode}", shareCode)
                 .with(req -> { req.setRemoteAddr("1.2.3.4"); return req; }))
                 .andExpect(status().isTooManyRequests());
     }
@@ -95,12 +95,12 @@ public class RateLimitIntegrationTest {
     @Test
     void 다른_IP는_독립된_버킷() throws Exception {
         for (int i = 0; i < 30; i++) {
-            mockMvc.perform(get("/votes/{shareCode}", shareCode)
+            mockMvc.perform(get("/api/votes/{shareCode}", shareCode)
                     .with(req -> { req.setRemoteAddr("1.2.3.4"); return req; }))
                     .andExpect(status().isOk());
         }
 
-        mockMvc.perform(get("/votes/{shareCode}", shareCode)
+        mockMvc.perform(get("/api/votes/{shareCode}", shareCode)
                 .with(req -> { req.setRemoteAddr("5.6.7.8"); return req; }))
                 .andExpect(status().isOk());
     }
