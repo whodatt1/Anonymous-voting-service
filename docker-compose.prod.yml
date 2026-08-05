@@ -129,6 +129,9 @@ services:
     depends_on:
       - app
 
+    volumes:
+      - /etc/letsencrypt:/etc/letsencrypt:ro
+
 # Named Volume 선언
 # Docker가 관리하는 영속 스토리지 — 컨테이너가 삭제돼도 데이터 유지
 # EC2의 EBS(하드디스크)에 실제로 저장됨
