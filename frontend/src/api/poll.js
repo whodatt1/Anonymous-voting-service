@@ -4,7 +4,7 @@
 export async function createPoll(title, options, expiresAt) {
   const res = await fetch('/votes', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
     body: JSON.stringify({ title, options, expiresAt })
   })
 
@@ -18,7 +18,8 @@ export async function createPoll(title, options, expiresAt) {
 
 export async function getHostPoll(shareCode) {
   const res = await fetch(`/votes/${shareCode}/host`, {
-    method: 'GET'
+    method: 'GET',
+    headers: { 'Accept': 'application/json' }
   })
 
   if (!res.ok) {
@@ -31,7 +32,8 @@ export async function getHostPoll(shareCode) {
 
 export async function getPoll(shareCode) {
   const res = await fetch(`/votes/${shareCode}`, {
-    method: 'GET'
+    method: 'GET',
+    headers: { 'Accept': 'application/json' }
   })
 
   if (!res.ok) {
@@ -45,7 +47,7 @@ export async function getPoll(shareCode) {
 export async function castVote(shareCode, optionId) {
   const res = await fetch(`/votes/${shareCode}/vote`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
     body: JSON.stringify({ optionId })
   })
 
@@ -57,7 +59,8 @@ export async function castVote(shareCode, optionId) {
 
 export async function closePoll(shareCode) {
   const res = await fetch(`/votes/${shareCode}/close`, {
-    method: 'PATCH'
+    method: 'PATCH',
+    headers: { 'Accept': 'application/json' }
   })
 
   if (!res.ok) {
