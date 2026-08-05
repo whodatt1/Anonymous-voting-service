@@ -1,10 +1,7 @@
-// 백엔드 API 호출 함수 모음
-// Vite proxy 설정으로 /votes/* 요청은 자동으로 http://localhost:8080으로 전달됨
-
 export async function createPoll(title, options, expiresAt) {
-  const res = await fetch('/votes', {
+  const res = await fetch('/api/votes', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ title, options, expiresAt })
   })
 
@@ -17,10 +14,7 @@ export async function createPoll(title, options, expiresAt) {
 }
 
 export async function getHostPoll(shareCode) {
-  const res = await fetch(`/votes/${shareCode}/host`, {
-    method: 'GET',
-    headers: { 'Accept': 'application/json' }
-  })
+  const res = await fetch(`/api/votes/${shareCode}/host`)
 
   if (!res.ok) {
     const err = await res.json()
@@ -31,10 +25,7 @@ export async function getHostPoll(shareCode) {
 }
 
 export async function getPoll(shareCode) {
-  const res = await fetch(`/votes/${shareCode}`, {
-    method: 'GET',
-    headers: { 'Accept': 'application/json' }
-  })
+  const res = await fetch(`/api/votes/${shareCode}`)
 
   if (!res.ok) {
     const err = await res.json()
@@ -45,9 +36,9 @@ export async function getPoll(shareCode) {
 }
 
 export async function castVote(shareCode, optionId) {
-  const res = await fetch(`/votes/${shareCode}/vote`, {
+  const res = await fetch(`/api/votes/${shareCode}/vote`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ optionId })
   })
 
@@ -58,9 +49,8 @@ export async function castVote(shareCode, optionId) {
 }
 
 export async function closePoll(shareCode) {
-  const res = await fetch(`/votes/${shareCode}/close`, {
+  const res = await fetch(`/api/votes/${shareCode}/close`, {
     method: 'PATCH',
-    headers: { 'Accept': 'application/json' }
   })
 
   if (!res.ok) {

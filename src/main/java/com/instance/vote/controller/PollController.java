@@ -19,7 +19,7 @@ import java.time.temporal.ChronoUnit;
 import java.util.UUID;
 
 @RestController
-@RequestMapping("/votes")
+@RequestMapping("/api/votes")
 @RequiredArgsConstructor
 public class PollController {
 
@@ -36,7 +36,7 @@ public class PollController {
 
         ResponseCookie cookie = ResponseCookie.from("hostToken", response.hostToken())
                 .httpOnly(true)
-                .path("/votes/" + response.shareCode())
+                .path("/api/votes/" + response.shareCode())
                 // Duration.ofSeconds(-1)을 넘기면 예외가 발생하므로 0으로 방어
                 .maxAge(Duration.ofSeconds(Math.max(secondsUntilExpiry, 0)))
                 .sameSite("Strict")

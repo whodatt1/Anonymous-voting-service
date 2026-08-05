@@ -12,7 +12,7 @@ export function useSSE(shareCode) {
   useEffect(() => {
     // TODO: EventSource 연결 구현
     // 1. EventSource 생성
-    const eventSource = new EventSource(`/votes/${shareCode}/stream`)
+    const eventSource = new EventSource(`/api/votes/${shareCode}/stream`)
 
     // 2. 세가지 핸들러 등록
     eventSource.onopen = () => { 
