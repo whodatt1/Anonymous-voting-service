@@ -6,7 +6,7 @@ import { useSSE } from '../../hooks/useSSE'
 export default function Manage() {
   const { shareCode } = useParams()
   const navigate = useNavigate()
-  const { counts, connected } = useSSE(shareCode)
+  const { counts, connected, disconnectReason } = useSSE(shareCode)
 
   const [poll, setPoll] = useState(null)
   const [loading, setLoading] = useState(true)
@@ -48,8 +48,14 @@ export default function Manage() {
         <div className="flex items-start justify-between mb-8">
           <div>
             <div className="flex items-center gap-2 mb-2">
-              <span className={`inline-block w-2 h-2 rounded-full ${connected ? 'bg-green-400 animate-pulse' : 'bg-neutral-600'}`} />
-              <span className="text-xs text-neutral-400">{connected ? '실시간 연결됨' : '연결 중...'}</span>
+              <span className={`inline-block w-2 h-2 rounded-full ${
+                connected ? 'bg-green-400 animate-pulse' :
+                disconnectReason === 'replaced' ? 'bg-blue-400' :
+                'bg-neutral-600'
+              }`} />
+              <span className="text-xs text-neutral-400">
+                {connected ? '실시간 연결됨' : disconnectReason === 'replaced' ? '다른 창에서 관리 중' : '연결 중...'}
+              </span>
             </div>
             <h1 className="text-2xl font-bold text-white">{poll.title}</h1>
             <p className="text-neutral-400 text-sm mt-1">총 {total}명 참여</p>
@@ -102,12 +108,23 @@ export default function Manage() {
           + 새 투표 만들기
         </button>
 
-        <div className="mt-4 px-4 py-3 rounded-xl border-l-2 border-blue-600 bg-blue-950/30">
-          <p className="text-xs text-neutral-400 leading-relaxed">
-            <span className="text-blue-400 font-semibold">참고</span> &nbsp;실시간 연결은 하나의 창에서만 유지됩니다.
-            &nbsp;<span className="text-neutral-300">연결 중...</span>으로 표시된다면 새로고침을 해보세요.
-          </p>
-        </div>
+        {disconnectReason === 'replaced' ? (
+          <div className="mt-4 px-4 py-4 rounded-xl border border-blue-800/60 bg-blue-950/30">
+            <p className="text-xs text-neutral-300 mb-3">다른 창에서 실시간 연결이 유지되고 있습니다.</p>
+            <button
+              onClick={() => window.location.reload()}
+              className="text-xs px-3 py-1.5 rounded-lg bg-blue-900/60 hover:bg-blue-800/60 text-blue-300 transition"
+            >
+              이 창으로 가져오기
+            </button>
+          </div>
+        ) : (
+          <div className="mt-4 px-4 py-3 rounded-xl border-l-2 border-neutral-700 bg-neutral-900/50">
+            <p className="text-xs text-neutral-500 leading-relaxed">
+              실시간 연결은 한 번에 하나의 창에서만 유지됩니다.
+            </p>
+          </div>
+        )}
       </div>
 
       {showNewPollModal && (
