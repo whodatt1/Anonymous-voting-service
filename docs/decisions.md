@@ -386,3 +386,9 @@
 - 채택 이유 / 트레이드오프: 크레딧 6개월 안정 운영 우선. Grafana 시연은 로컬로 대체. Docker MySQL은 EC2 종료 시 데이터 유실 위험 있으나 볼륨 마운트로 완화.
 - 메모리 할당: Spring Boot -Xmx256m / MySQL innodb_buffer_pool_size=128M / Redis maxmemory 64mb
 - 파일 분리: 로컬용 docker-compose.yml 유지 / 배포용 docker-compose.prod.yml 별도 생성
+
+## [2026-08-05] API 경로 분리 — `/votes` → `/api/votes`
+- 결정: 백엔드 API 엔드포인트 전체를 `/votes/**` → `/api/votes/**`로 분리
+- 배경: React 페이지 라우트(`/votes/{shareCode}`)와 Spring Boot API(`/votes/{shareCode}`)가 동일 URL을 공유하던 중, iOS/KakaoTalk WebKit 브라우저가 페이지 네비게이션 응답(index.html)을 캐싱한 뒤 fetch() 호출 시 캐시된 HTML을 반환 → JSON 파싱 에러("Unexpected token '<'") 발생
+- 대안: nginx에서 Accept 헤더(`text/html` 여부)로 페이지 요청과 API 요청을 구분하는 우회책 — 실제로 적용 중이었으나 브라우저별 캐시 동작 차이에 취약하고 nginx 설정 복잡도가 높아 근본 해결이 아님
+- 채택 이유 / 트레이드오프: URL 네임스페이스를 분리하면 nginx가 경로만으로 정적 파일 vs API를 명확히 구분 가능 → Accept 헤더 기반 418 트릭 등 우회 로직 전체 제거. hostToken 쿠키 Path도 `/api/votes/`로 동일 변경 필요. 이미 배포된 서비스 URL 구조 변경이므로 기존 공유 링크에 영향 없음(shareCode 기반 프론트 라우트는 `/votes/{shareCode}` 그대로 유지).
