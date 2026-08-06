@@ -398,3 +398,9 @@
 - 배경: React 페이지 라우트(`/votes/{shareCode}`)와 Spring Boot API(`/votes/{shareCode}`)가 동일 URL을 공유하던 중, iOS/KakaoTalk WebKit 브라우저가 페이지 네비게이션 응답(index.html)을 캐싱한 뒤 fetch() 호출 시 캐시된 HTML을 반환 → JSON 파싱 에러("Unexpected token '<'") 발생
 - 대안: nginx에서 Accept 헤더(`text/html` 여부)로 페이지 요청과 API 요청을 구분하는 우회책 — 실제로 적용 중이었으나 브라우저별 캐시 동작 차이에 취약하고 nginx 설정 복잡도가 높아 근본 해결이 아님
 - 채택 이유 / 트레이드오프: URL 네임스페이스를 분리하면 nginx가 경로만으로 정적 파일 vs API를 명확히 구분 가능 → Accept 헤더 기반 418 트릭 등 우회 로직 전체 제거. hostToken 쿠키 Path도 `/api/votes/`로 동일 변경 필요. 이미 배포된 서비스 URL 구조 변경이므로 기존 공유 링크에 영향 없음(shareCode 기반 프론트 라우트는 `/votes/{shareCode}` 그대로 유지).
+
+## [2026-08-06] SSE stream Rate Limiting 제거
+- 결정: `GET /api/votes/{shareCode}/stream` 의 `@RateLimit` 제거
+- 배경: [2026-07-15] SSE Rate Limit 도입 당시 "반복 연결 시 NIO 고갈 위험"을 근거로 적용했으나, 실제 운영에서 두 가지 문제 발견. ① pollId당 1개 교체 방식이 이미 NIO 고갈을 구조적으로 방지(동일 poll 반복 연결 → 항상 1개 유지). ② SSE 엔드포인트는 `produces = text/event-stream`이라 Rate Limit 초과 시 예외 응답(JSON)이 `Accept: text/event-stream`과 충돌 → `HttpMediaTypeNotAcceptableException` → 클라이언트에 에러 메시지 미전달, "연결 중..." 무한 표시
+- 대안: GlobalExceptionHandler 수정으로 SSE 요청에도 JSON 에러 응답 전달 — 근본 원인(불필요한 Rate Limit)은 그대로 남음
+- 채택 이유 / 트레이드오프: 교체 방식이 이미 NIO 방어 역할을 하므로 Rate Limit의 추가 방어 가치가 없음. 제거로 정상 사용(탭 전환 반복) 시 429 차단 문제 해소. 직접 API 호출로 다수 poll에 동시 SSE 연결하는 악의적 시나리오는 hostToken 쿠키 인증이 1차 방어선으로 작동.
