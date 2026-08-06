@@ -387,6 +387,12 @@
 - 메모리 할당: Spring Boot -Xmx256m / MySQL innodb_buffer_pool_size=128M / Redis maxmemory 64mb
 - 파일 분리: 로컬용 docker-compose.yml 유지 / 배포용 docker-compose.prod.yml 별도 생성
 
+## [2026-07-15] SSE stream 엔드포인트 Rate Limiting 추가
+- 결정: `GET /api/votes/{shareCode}/stream` (호스트 SSE 연결)에 IP 기반 분당 5회 제한 적용
+- 배경: [2026-07-15] Rate Limiting 전략 개정에서 POST 엔드포인트 2개를 추가했으나, 호스트 SSE 연결 엔드포인트는 누락. 악의적 반복 연결 시 NIO 커넥션이 빠르게 소비되고 서버 자원이 낭비될 수 있음
+- 대안: SSE 동시 연결 수 상한(pollId당 1개 교체 방식으로 이미 제한 중) — 연결 자체는 막지 못하므로 Rate Limiting으로 보완
+- 채택 이유 / 트레이드오프: 기존 Bucket4j + IP 기반 인프라 재사용, @RateLimit 애노테이션 한 줄 추가로 적용. 정상적인 호스트도 1분에 5회 이상 재연결 시 차단되나, 정상 사용 패턴에서는 발생하지 않는 케이스로 수용.
+
 ## [2026-08-05] API 경로 분리 — `/votes` → `/api/votes`
 - 결정: 백엔드 API 엔드포인트 전체를 `/votes/**` → `/api/votes/**`로 분리
 - 배경: React 페이지 라우트(`/votes/{shareCode}`)와 Spring Boot API(`/votes/{shareCode}`)가 동일 URL을 공유하던 중, iOS/KakaoTalk WebKit 브라우저가 페이지 네비게이션 응답(index.html)을 캐싱한 뒤 fetch() 호출 시 캐시된 HTML을 반환 → JSON 파싱 에러("Unexpected token '<'") 발생
