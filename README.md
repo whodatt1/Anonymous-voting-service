@@ -133,9 +133,10 @@ VoteService
 
 | 엔드포인트 | 제한 |
 |---|---|
-| `GET /votes/{shareCode}` | 분당 30회 |
-| `POST /polls` | 분당 5회 |
-| `POST /votes/{shareCode}/vote` | 분당 5회 |
+| `GET /api/votes/{shareCode}` | 분당 30회 |
+| `POST /api/polls` | 분당 5회 |
+| `POST /api/votes/{shareCode}/vote` | 분당 5회 |
+| `GET /api/votes/{shareCode}/stream` | 분당 5회 |
 
 - **키**: 클라이언트 IP
 - **알고리즘**: refillGreedy (초당 균등 충전)
