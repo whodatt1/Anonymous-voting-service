@@ -399,6 +399,27 @@
 - 대안: nginx에서 Accept 헤더(`text/html` 여부)로 페이지 요청과 API 요청을 구분하는 우회책 — 실제로 적용 중이었으나 브라우저별 캐시 동작 차이에 취약하고 nginx 설정 복잡도가 높아 근본 해결이 아님
 - 채택 이유 / 트레이드오프: URL 네임스페이스를 분리하면 nginx가 경로만으로 정적 파일 vs API를 명확히 구분 가능 → Accept 헤더 기반 418 트릭 등 우회 로직 전체 제거. hostToken 쿠키 Path도 `/api/votes/`로 동일 변경 필요. 이미 배포된 서비스 URL 구조 변경이므로 기존 공유 링크에 영향 없음(shareCode 기반 프론트 라우트는 `/votes/{shareCode}` 그대로 유지).
 
+## [2026-08-09] 만료 시각 도달 시 UI 자동 전환 — 페이지별 방식 분리 확정
+- 결정: Vote 페이지는 만료 실시간 UI 전환 로직 제외. Manage 페이지는 SSE onTimeout 기반 서버 push 방식 채택.
+- 배경: isEffectivelyClosed()는 초기 로드 시 정확한 status를 내려주지만, 이미 열려있는 페이지는 새로고침 전까지 갱신되지 않음.
+- Vote 페이지 배제 근거: 투표 완료 후에는 ResultView로 이미 전환됨. 투표 전 만료 시 제출 시도 → POLL_EXPIRED 에러로 충분히 전달됨. 호스트와 달리 참여자는 만료 순간을 지켜보는 사용 패턴이 아님.
+- Manage 페이지 SSE 방식: SseEmitter가 이미 expiresAt 기준으로 타임아웃이 설정되어 있음. onTimeout 콜백에서 `close: expired` 이벤트를 전송하면 기존 close 이벤트 인프라(replaced 처리)를 그대로 확장 가능. 프론트는 `disconnectReason === 'expired'` 조건으로 poll.status를 CLOSED로 전환.
+- 트레이드오프: replaced 상태인 탭은 만료 시 expired 이벤트를 수신하지 못함(SSE 이미 끊김). 해당 탭은 어차피 "다른 창에서 관리 중" 상태라 조작 불가이고, "이 창으로 가져오기" 리로드 시 isEffectivelyClosed()가 정확한 status를 반환하므로 수용 가능한 범위로 판단.
+
+## [2026-08-09] hostToken 쿠키 MaxAge — expiresAt + 30일로 변경
+- 결정: hostToken 쿠키 MaxAge를 `expiresAt까지 남은 초`에서 `expiresAt까지 남은 초 + 30일`로 변경
+- 배경: SseEmitter 타임아웃이 expiresAt에 발동하면 브라우저 EventSource가 자동 재연결을 시도하는데, 이 시점에 hostToken 쿠키가 함께 만료되어 MissingRequestCookieException(400) 발생. 이후 무한 재연결 루프로 이어짐. 또한 만료 후 호스트가 페이지를 새로고침해도 getHostPoll()이 쿠키 없음으로 실패하는 문제.
+- 대안: expiresAt 기준 동적 MaxAge 유지 — 투표 수명과 쿠키 수명이 일치하나 만료 즉시 모든 호스트 기능이 차단됨
+- 채택 이유 / 트레이드오프: 데이터 보관 기간(종료 후 30일, [2026-07-15] 결정)과 쿠키 수명을 일치시켜 호스트가 결과 확인·새로고침 가능한 구간 확보. participantToken이 365일 고정으로 변경된 것과 같은 맥락 — "토큰 역할은 식별이지 투표 수명에 묶을 필요 없다". 쿠키가 30일 더 살아있어도 서버가 만료 투표를 validateVotable()로 막으므로 어뷰징 위험 없음.
+- 구현: `Duration.ofSeconds(Math.max(secondsUntilExpiry, 0))` → `Duration.ofSeconds(secondsUntilExpiry + Duration.ofDays(30).toSeconds())`
+
+## [2026-08-09] 만료 투표 status 응답 처리 — effective status 계산 방식 채택
+- 결정: `getPoll` 응답의 `status` 필드를 DB 컬럼 값이 아닌 요청 시점 기준 effective status로 계산해 반환
+- 배경: `expiresAt` 경과 후에도 DB `status`가 `OPEN`으로 남아 있어, 프론트가 `status === 'CLOSED'` 조건으로 결과 화면을 판단하는 경우 투표 폼을 계속 보여주는 UX 버그 발생. 제출 시 `POLL_EXPIRED` 에러가 나는 구조.
+- 대안: 스케줄러로 만료된 Poll을 주기적으로 CLOSED 업데이트 — 최대 N분 불일치 구간 발생, PollCleanupScheduler와 책임 중복. 프론트 `expiresAt` 직접 체크 — 판단 로직이 백/프론트에 분산됨.
+- 채택 이유 / 트레이드오프: `Poll.isEffectivelyClosed()`(status=CLOSED OR expiresAt 경과)를 `toDetail()`에서 호출해 요청 시점 기준으로 즉시 정확한 값 반환. DB 쓰기 없이 읽기 경로에서만 해결. DB의 `status` 컬럼은 여전히 `OPEN`으로 남지만 `PollCleanupScheduler`가 `COALESCE(closedAt, expiresAt)` 기준으로 삭제하므로 영향 없음.
+- 추가 변경: `validateNotClosed()`도 `isEffectivelyClosed()` 기반으로 변경 — `closePoll` 호출 시 이미 만료된 투표도 `POLL_ALREADY_CLOSED`로 응답함(의도한 동작).
+
 ## [2026-08-06] SSE stream Rate Limiting 제거
 - 결정: `GET /api/votes/{shareCode}/stream` 의 `@RateLimit` 제거
 - 배경: [2026-07-15] SSE Rate Limit 도입 당시 "반복 연결 시 NIO 고갈 위험"을 근거로 적용했으나, 실제 운영에서 두 가지 문제 발견. ① pollId당 1개 교체 방식이 이미 NIO 고갈을 구조적으로 방지(동일 poll 반복 연결 → 항상 1개 유지). ② SSE 엔드포인트는 `produces = text/event-stream`이라 Rate Limit 초과 시 예외 응답(JSON)이 `Accept: text/event-stream`과 충돌 → `HttpMediaTypeNotAcceptableException` → 클라이언트에 에러 메시지 미전달, "연결 중..." 무한 표시
