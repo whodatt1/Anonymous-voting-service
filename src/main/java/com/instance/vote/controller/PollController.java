@@ -37,8 +37,8 @@ public class PollController {
         ResponseCookie cookie = ResponseCookie.from("hostToken", response.hostToken())
                 .httpOnly(true)
                 .path("/api/votes/" + response.shareCode())
-                // Duration.ofSeconds(-1)을 넘기면 예외가 발생하므로 0으로 방어
-                .maxAge(Duration.ofSeconds(Math.max(secondsUntilExpiry, 0)))
+                // 데이터 보관 기간(종료 후 30일)과 쿠키 수명을 일치시켜 호스트가 결과 확인 및 새로고침 가능한 구간 확보
+                .maxAge(Duration.ofSeconds(secondsUntilExpiry + Duration.ofDays(30).toSeconds()))
                 .sameSite("Strict")
                 .build();
 
