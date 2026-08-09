@@ -92,9 +92,15 @@ public class Poll {
         }
     }
 
+    // 닫혀있거나 만료기간이 지났는지 검증
+    public boolean isEffectivelyClosed() {
+        return this.status == PollStatus.CLOSED
+                || this.expiresAt.isBefore(LocalDateTime.now());
+    }
+
     // 닫힌 투표인지 검증
     public void validateNotClosed() {
-        if (this.status == PollStatus.CLOSED) {
+        if (isEffectivelyClosed()) {
             throw new BusinessException(ErrorCode.POLL_ALREADY_CLOSED);
         }
     }

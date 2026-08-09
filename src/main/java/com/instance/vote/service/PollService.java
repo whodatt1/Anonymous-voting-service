@@ -151,7 +151,7 @@ public class PollService {
                 poll.getId(),
                 poll.getShareCode(),
                 poll.getTitle(),
-                poll.getStatus().name(),
+                poll.isEffectivelyClosed() ? "CLOSED" : "OPEN",
                 poll.getExpiresAt(),
                 options,
                 hasVoted,
