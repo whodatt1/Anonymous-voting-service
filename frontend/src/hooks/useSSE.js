@@ -34,7 +34,7 @@ export function useSSE(shareCode) {
     // name: "close"로 지정된 이벤트라 addEventListener로만 수신 가능 (onmessage는 name 없는 기본 이벤트만 수신)
     // eventSource.close()를 직접 호출해야 브라우저의 자동 재연결을 막을 수 있음
     // close() 없이 그냥 두면 서버가 complete()해도 브라우저가 재연결을 시도 → 핑퐁 현상 발생
-    eventSource.addEventListener('close', () => {
+    eventSource.addEventListener('close', (event) => {
       setConnected(false)
       setDisconnectReason('replaced')
       eventSource.close()

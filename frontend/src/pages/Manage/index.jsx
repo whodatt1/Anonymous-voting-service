@@ -12,6 +12,13 @@ export default function Manage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [showNewPollModal, setShowNewPollModal] = useState(false)
+  const [copied, setCopied] = useState(false)
+
+  const handleCopyShareLink = () => {
+    navigator.clipboard.writeText(`${window.location.origin}/votes/${shareCode}`)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 2000)
+  }
 
   useEffect(() => {
     const fetch = async () => {
@@ -26,6 +33,13 @@ export default function Manage() {
     }
     fetch()
   }, [shareCode])
+
+  useEffect(() => {
+    if (connected || !poll || poll.status !== 'OPEN') return
+    if (new Date(poll.expiresAt) < new Date()) {
+      setPoll(prev => ({ ...prev, status: 'CLOSED' }))
+    }
+  }, [connected, poll?.expiresAt, poll?.status])
 
   const handleClose = async () => {
     try {
@@ -60,12 +74,19 @@ export default function Manage() {
             <h1 className="text-2xl font-bold text-white">{poll.title}</h1>
             <p className="text-neutral-400 text-sm mt-1">총 {total}명 참여</p>
           </div>
-          {poll.status === 'OPEN' && (
+          {poll.status === 'OPEN' ? (
             <button
               onClick={handleClose}
               className="px-4 py-2 rounded-xl border border-red-800 text-red-400 hover:bg-red-950 text-sm transition"
             >
               투표 마감
+            </button>
+          ) : (
+            <button
+              disabled
+              className="px-4 py-2 rounded-xl border border-neutral-700 text-neutral-500 text-sm cursor-not-allowed"
+            >
+              마감된 투표
             </button>
           )}
         </div>
@@ -95,10 +116,18 @@ export default function Manage() {
         </div>
 
         <div className="mt-8 p-4 rounded-xl bg-neutral-900 border border-neutral-800">
-          <p className="text-xs text-neutral-500 mb-1">공유 링크</p>
-          <p className="text-sm text-neutral-300 font-mono break-all">
-            {window.location.origin}/votes/{shareCode}
-          </p>
+          <p className="text-xs text-neutral-500 mb-3">공유 링크</p>
+          <div className="flex items-center gap-2">
+            <p className="flex-1 text-sm text-neutral-300 font-mono break-all">
+              {window.location.origin}/votes/{shareCode}
+            </p>
+            <button
+              onClick={handleCopyShareLink}
+              className="shrink-0 px-3 py-1.5 rounded-lg bg-neutral-700 hover:bg-neutral-600 text-xs text-neutral-300 transition"
+            >
+              {copied ? '복사됨 ✓' : '복사'}
+            </button>
+          </div>
         </div>
 
         <button
