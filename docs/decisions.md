@@ -425,3 +425,15 @@
 - 배경: [2026-07-15] SSE Rate Limit 도입 당시 "반복 연결 시 NIO 고갈 위험"을 근거로 적용했으나, 실제 운영에서 두 가지 문제 발견. ① pollId당 1개 교체 방식이 이미 NIO 고갈을 구조적으로 방지(동일 poll 반복 연결 → 항상 1개 유지). ② SSE 엔드포인트는 `produces = text/event-stream`이라 Rate Limit 초과 시 예외 응답(JSON)이 `Accept: text/event-stream`과 충돌 → `HttpMediaTypeNotAcceptableException` → 클라이언트에 에러 메시지 미전달, "연결 중..." 무한 표시
 - 대안: GlobalExceptionHandler 수정으로 SSE 요청에도 JSON 에러 응답 전달 — 근본 원인(불필요한 Rate Limit)은 그대로 남음
 - 채택 이유 / 트레이드오프: 교체 방식이 이미 NIO 방어 역할을 하므로 Rate Limit의 추가 방어 가치가 없음. 제거로 정상 사용(탭 전환 반복) 시 429 차단 문제 해소. 직접 API 호출로 다수 poll에 동시 SSE 연결하는 악의적 시나리오는 hostToken 쿠키 인증이 1차 방어선으로 작동.
+
+## [2026-08-10] CD 파이프라인 도입 보류
+- 결정: GitHub Actions CD 자동 배포 도입하지 않음. 수동 배포(git pull + docker-compose up --build -d) 유지.
+- 배경: CI(테스트 자동화)는 구축 완료. CD 도입을 검토했으나 이 프로젝트 환경에서 실익이 크지 않다고 판단.
+- 보류 근거:
+  - Elastic IP 미적용으로 EC2 stop/start 시 동적 IP 변경 → EC2_HOST Secret이 깨지는 구조적 리스크 상존
+  - 배포 빈도가 낮은 1인 프로젝트에서 수동 배포가 명령어 2줄로 충분히 낮은 마찰
+  - SSE 연결 강제 종료 리스크: 배포 타이밍을 사람이 통제할 수 없어짐
+  - Graceful Shutdown으로 완화 가능하나, REST 응답 시간(수십ms) 수준에서 실질적 차이 없음
+- 대안: Elastic IP 추가(월 ~$3.6) + CD 구성 / AWS CLI로 동적 IP 조회 후 SSH 접속 / 도메인 기반 SSH
+- 트레이드오프: 배포 자동화 편의성을 포기하는 대신 IP 변경 관련 운영 리스크와 설정 복잡도를 제거
+- 재검토 조건: 배포 빈도 증가 또는 Elastic IP 추가 시점에 재도입 고려
