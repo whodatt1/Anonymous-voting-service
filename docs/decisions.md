@@ -327,6 +327,8 @@
 - 채택 이유 / 트레이드오프:
   - 교체 방식(ConcurrentHashMap.compute()): 새 탭 접속 시 기존 emitter에 close 이벤트 전송 후 complete(), 새 emitter로 원자적 교체. pollId당 항상 1개 보장.
   - Heartbeat(@Scheduled 30초): 주기적 comment ping으로 죽은 연결을 IOException으로 감지 → onError 발화 → remove(). 브라우저 비정상 종료 시 최대 30초 내 정리.
+    - 근거 보충: 서블릿 3.1 비동기 모델은 소켓 상태 변화를 콜백으로 알려주지 않음. 탭 닫기(FIN 도착)·네트워크 단절(FIN 없음) 모두 send() 시도 시 IOException이 나야 비로소 감지 가능. onCompletion은 complete() 호출·타임아웃 발화 전용 콜백으로 클라이언트 종료 감지와 무관. 투표가 없으면 send()도 없어 emitter가 Map에 영구 잔류하는 문제가 Heartbeat 도입의 직접 원인.
+    - 부수 효과: Nginx proxy_read_timeout(기본 60초) 초과 시 프록시가 먼저 연결을 끊는 문제도 함께 방지.
   - close 이벤트 + 프론트 eventSource.close(): 교체된 구 탭의 EventSource 자동 재연결 방지. 네트워크 단절 등 close 이벤트 없는 경우는 자동 재연결 그대로 동작.
   - 트레이드오프: 교체된 구 탭은 새로고침 전까지 SSE 수신 불가(의도한 동작). 조건부 remove(pollId, emitter)로 새 emitter가 콜백에 의해 실수로 삭제되는 레이스 컨디션 방지.
 
