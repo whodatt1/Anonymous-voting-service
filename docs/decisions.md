@@ -407,6 +407,7 @@
 - Vote 페이지 배제 근거: 투표 완료 후에는 ResultView로 이미 전환됨. 투표 전 만료 시 제출 시도 → POLL_EXPIRED 에러로 충분히 전달됨. 호스트와 달리 참여자는 만료 순간을 지켜보는 사용 패턴이 아님.
 - Manage 페이지 SSE 방식: SseEmitter가 이미 expiresAt 기준으로 타임아웃이 설정되어 있음. onTimeout 콜백에서 `close: expired` 이벤트를 전송하면 기존 close 이벤트 인프라(replaced 처리)를 그대로 확장 가능. 프론트는 `disconnectReason === 'expired'` 조건으로 poll.status를 CLOSED로 전환.
 - 트레이드오프: replaced 상태인 탭은 만료 시 expired 이벤트를 수신하지 못함(SSE 이미 끊김). 해당 탭은 어차피 "다른 창에서 관리 중" 상태라 조작 불가이고, "이 창으로 가져오기" 리로드 시 isEffectivelyClosed()가 정확한 status를 반환하므로 수용 가능한 범위로 판단.
+- 구현 변경 (2026-08-28): `close: expired` 이벤트 서버 push 방식 미구현. 실제 구현은 onTimeout 콜백에서 remove()만 호출하고, 프론트가 SSE 끊김 감지 후 `expiresAt < now` 클라이언트 체크로 만료 여부를 판단하는 방식으로 대체 처리 (`Manage/index.jsx:37-42`).
 
 ## [2026-08-09] hostToken 쿠키 MaxAge — expiresAt + 30일로 변경
 - 결정: hostToken 쿠키 MaxAge를 `expiresAt까지 남은 초`에서 `expiresAt까지 남은 초 + 30일`로 변경

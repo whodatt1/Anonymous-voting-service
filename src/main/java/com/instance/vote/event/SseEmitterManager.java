@@ -53,15 +53,25 @@ public class SseEmitterManager {
 
         //return emitter;
 
-        emitters.compute(pollId, (k, existing) -> {
-            if (existing != null) {
-                try {
-                    existing.send(SseEmitter.event().name("close").data("replaced"));
-                } catch (IOException ignored) {}
-                existing.complete();
-            }
-            return emitter;
-        });
+        // ConcurrentHashMap 스펙상 compute() 람다 안에서 같은 맵을 수정하는 재진입은 비보장
+        // put()으로 먼저 교체 후 구 emitter를 후처리 하는 방식으로 변경
+        SseEmitter old = emitters.put(pollId, emitter);
+        if (old != null) {
+            try {
+                old.send(SseEmitter.event().name("close").data("replaced"));
+            } catch (IOException ignored) {}
+            old.complete();
+        }
+
+//        emitters.compute(pollId, (k, existing) -> {
+//            if (existing != null) {
+//                try {
+//                    existing.send(SseEmitter.event().name("close").data("replaced"));
+//                } catch (IOException ignored) {}
+//                existing.complete();
+//            }
+//            return emitter;
+//        });
 
         return emitter;
     }
@@ -84,7 +94,8 @@ public class SseEmitterManager {
                 emitter.send(SseEmitter.event().data(data));
             } catch (IOException e) {
                 //dead.add(emitter);
-                remove(pollId, emitter);
+                //remove(pollId, emitter);
+                emitter.completeWithError(e); // async context 정리 + onError 발화 -> remove();
             }
         //}
 
@@ -114,7 +125,8 @@ public class SseEmitterManager {
                 // ping을 쏘고 IOException 발생한 emitter는 삭제 처리
                 emitter.send(SseEmitter.event().comment("ping"));
             } catch (IOException e) {
-                remove(pollId, emitter);
+                //remove(pollId, emitter);
+                emitter.completeWithError(e); // async context 정리 + onError 발화 -> remove();
             }
         });
     }

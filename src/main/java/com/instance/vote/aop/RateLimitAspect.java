@@ -37,13 +37,15 @@ public class RateLimitAspect {
 
         // 2. IP 추출 후 Redis 키 구성
         String clientIp = extractClientIp(request);
-        String bucketKey = "rate:" + clientIp + ":" + joinPoint.getSignature().getName();
+        // 풀 클래스명을 반환하게 하여 미래에 다른 Controller간 같은 메서드간 충돌을 방지
+        String bucketKey = "rate:" + clientIp + ":" + joinPoint.getSignature().getDeclaringTypeName()
+                + "." + joinPoint.getSignature().getName();
 
         // 4. 버킷 설정 - @RateLimit 어노테이션 값 적용
         BucketConfiguration configuration = BucketConfiguration.builder()
                 .addLimit(Bandwidth.builder()
                         .capacity(rateLimit.limit())
-                        // 30개 60초로 가정 시 30 % 60 = 0.5개/초 속도로 채워짐
+                        // 30개 60초로 가정 시 30 / 60 = 0.5개/초 속도로 채워짐
                         // intervally는 고정 윈도우 방식 59초에 30개, 1초뒤 30개 총 60개가 순간 통과 가능해지므로 해당 방식 채택
                         .refillGreedy(rateLimit.limit(), Duration.ofSeconds(rateLimit.windowSeconds()))
                         .build())
