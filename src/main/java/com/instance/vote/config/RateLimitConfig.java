@@ -42,8 +42,9 @@ public class RateLimitConfig {
                         // getDefault()로 기본값을 가져온 뒤 TTL 전략만 덮어씌움
                         ClientSideConfig.getDefault().withExpirationAfterWriteStrategy(
                                 // 버킷이 완전히 리필되는 데 걸리는 시간 + 10초 버퍼를 TTL로 설정
-                                // 버퍼 10초: 앱 서버·Redis 서버 간 클럭 스큐로 키가 조기 삭제되어
-                                // Rate Limiting이 우회되는 것을 방지
+                                // 버퍼 10초: 다중 인스턴스 배포 시 서버 간 System.nanoTime() 기준점 차이로
+                                // 버킷 리필 계산이 어긋나 키가 조기 삭제될 수 있는 경우를 방어
+                                // 현재 단일 인스턴스이므로 실질적 오차는 없으나 유지
                                 ExpirationAfterWriteStrategy.basedOnTimeForRefillingBucketUpToMax(Duration.ofSeconds(10))
                         )
                 )
