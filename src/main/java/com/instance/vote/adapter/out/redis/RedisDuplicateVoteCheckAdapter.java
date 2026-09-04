@@ -17,7 +17,7 @@ public class RedisDuplicateVoteCheckAdapter implements DuplicateVoteCheckPort {
     @Override
     public boolean isFirstVote(Long pollId, String participantToken, long ttlSeconds) {
 
-        // Redis SEXNX(Set if Not eXists) - 중복 투표 1차 방어
+        // Redis SETNX(Set if Not eXists) - 중복 투표 1차 방어
         String dupKey = "vote:dup:" + pollId + ":" + participantToken;
         Boolean isNew = stringRedisTemplate.opsForValue() // String 타입 키/값 조작
                 .setIfAbsent(dupKey, "1", ttlSeconds, TimeUnit.SECONDS);
