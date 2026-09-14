@@ -344,7 +344,7 @@
   - PollCleanupScheduler(@Scheduled 매일 새벽 3시) — VoteRecord → VoteOption → Poll 순 삭제 후 Redis vote:count 키 정리
 
 ## [2026-07-15] Rate Limiting 전략 개정 — 토큰 기반 → IP 기반 전환
-- 결정: Rate Limiting 키를 participantToken → 클라이언트 IP로 전환. POST /votes·POST /votes/{shareCode}/vote에 Rate Limit 추가(5회/분).
+- 결정: Rate Limiting 키를 participantToken → 클라이언트 IP로 전환. POST /votes·POST /votes/{shareCode}/vote에 Rate Limit 추가(5회/분). ※ castVote(@PostMapping /{shareCode}/vote)의 Rate Limit은 이후 제거됨 — 상세: [2026-09-14] 항목 참조.
 - 배경: participantToken 기반은 쿠키 삭제 후 재요청 시 새 토큰 발급으로 Rate Limit 완전 우회 가능. 토큰 없는 첫 요청도 통과시키는 구조적 허점 존재. POST 엔드포인트 2개에 방어선 없음.
 - 대안: Nginx limit_req_zone — 배포 구조 확정 전이므로 보류. Cloudflare — 도메인 구매 필요, 배포 후 재검토.
 - 채택 이유 / 트레이드오프: 기존 Bucket4j + Redis 인프라 재활용, 코드 변경만으로 해결. X-Forwarded-For 마지막 값 추출(ALB가 실제 IP를 항상 뒤에 추가) → 헤더 위조 방어. VPN·공용 NAT 사용자는 버킷 공유되는 구조적 한계는 IP 방식의 수용 가능한 트레이드오프.
@@ -440,3 +440,12 @@
 - 대안: Elastic IP 추가(월 ~$3.6) + CD 구성 / AWS CLI로 동적 IP 조회 후 SSH 접속 / 도메인 기반 SSH
 - 트레이드오프: 배포 자동화 편의성을 포기하는 대신 IP 변경 관련 운영 리스크와 설정 복잡도를 제거
 - 재검토 조건: 배포 빈도 증가 또는 Elastic IP 추가 시점에 재도입 고려
+
+## [2026-09-14] castVote Rate Limiting 제거
+- 결정: `POST /api/votes/{shareCode}/vote`의 `@RateLimit(limit=5, windowSeconds=60)` 제거
+- 배경: [2026-07-15] IP 기반 전환 시 castVote에도 Rate Limit을 추가했으나, 검토 결과 방어 가치 없이 NAT 오탐만 발생하는 구조임을 확인
+- 제거 근거:
+  - `@CookieValue(required=true)`로 쿠키 없는 요청은 Rate Limit 도달 전 400 차단 → "쿠키 없는 공격" 방어 불필요
+  - 중복 투표는 Redis SETNX + DB UNIQUE가 이미 방어 → Rate Limit의 추가 방어 가치 없음
+  - NAT 환경에서 같은 공인 IP를 공유하는 정상 투표자가 429를 받는 오탐 발생
+- 트레이드오프: 토큰 사이클링(쿠키 삭제 후 새 토큰으로 반복 투표)은 익명 시스템의 구조적 한계로 수용 — Rate Limit 유지 시에도 완전 차단 불가

@@ -15,7 +15,6 @@ public class VoteController {
 
     private final VoteService voteService;
 
-    @RateLimit(limit = 5, windowSeconds = 60) // 1분에 5번
     @PostMapping("/{shareCode}/vote")
     public ResponseEntity<Void> castVote(
             @PathVariable String shareCode,
