@@ -85,16 +85,18 @@ public class VoteService {
             voteRecordRepository.save(
                     VoteRecord.create(poll, voteOption, request.participantToken())
             );
+            // Redis INCR - 집계 카운트 -> 포트 호출로 변경
+            //String countKey = "vote:count:" + poll.getId() + ":" + request.optionId();
+            //stringRedisTemplate.opsForValue().increment(countKey);
+
+            voteCountPort.increment(poll.getId(), request.optionId());
         } catch (DataIntegrityViolationException e) {
+            duplicateVoteCheckPort.deleteVoteKey(poll.getId(), request.participantToken()); // 보상 트랜잭션
             throw new BusinessException(ErrorCode.DUPLICATE_VOTE);
+        } catch (RuntimeException e) {
+            duplicateVoteCheckPort.deleteVoteKey(poll.getId(), request.participantToken()); // 보상 트랜잭션
+            throw e;
         }
-
-
-        // Redis INCR - 집계 카운트 -> 포트 호출로 변경
-        //String countKey = "vote:count:" + poll.getId() + ":" + request.optionId();
-        //stringRedisTemplate.opsForValue().increment(countKey);
-
-        voteCountPort.increment(poll.getId(), request.optionId());
 
         // Sse 이벤트 발행
         eventPublisher.publishEvent(new VoteCastEvent(poll.getId(), shareCode));

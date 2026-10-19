@@ -29,6 +29,7 @@ import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.BDDMockito.willThrow;
 import static org.mockito.Mockito.verify;
 
 @ExtendWith(MockitoExtension.class)
@@ -203,6 +204,7 @@ public class VoteServiceTest {
                 () -> voteService.castVote("dummyCode", new VoteRequest.Cast(10L, "dummyToken")));
 
         assertThat(ex.getErrorCode()).isEqualTo(ErrorCode.DUPLICATE_VOTE);
+        verify(duplicateVoteCheckPort).deleteVoteKey(anyLong(), anyString());
     }
 
     @Test
@@ -230,4 +232,19 @@ public class VoteServiceTest {
         verify(eventPublisher).publishEvent(any(VoteCastEvent.class));
     }
 
+    @Test
+    void castVote_Redis집계_실패시_SETNX키_삭제() {
+        given(pollRepository.findByShareCode(anyString()))
+                .willReturn(Optional.of(openPoll));
+        given(voteOptionRepository.findById(any()))
+                .willReturn(Optional.of(voteOption));
+        given(duplicateVoteCheckPort.isFirstVote(anyLong(), anyString(), anyLong())).willReturn(true);
+        willThrow(new RuntimeException("Redis 연결 실패"))
+                .given(voteCountPort).increment(anyLong(), anyLong());
+
+        assertThrows(RuntimeException.class,
+                () -> voteService.castVote("dummyCode", new VoteRequest.Cast(10L, "dummyToken")));
+
+        verify(duplicateVoteCheckPort).deleteVoteKey(anyLong(), anyString());
+    }
 }
