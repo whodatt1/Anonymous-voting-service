@@ -18,10 +18,20 @@ public class RedisDuplicateVoteCheckAdapter implements DuplicateVoteCheckPort {
     public boolean isFirstVote(Long pollId, String participantToken, long ttlSeconds) {
 
         // Redis SETNX(Set if Not eXists) - 중복 투표 1차 방어
-        String dupKey = "vote:dup:" + pollId + ":" + participantToken;
+        String dupKey = buildDupKey(pollId, participantToken);
         Boolean isNew = stringRedisTemplate.opsForValue() // String 타입 키/값 조작
                 .setIfAbsent(dupKey, "1", ttlSeconds, TimeUnit.SECONDS);
 
         return Boolean.TRUE.equals(isNew); // Redis가 null 이면 NPE 발생 -> null이면 false로 안전하게 처리
+    }
+
+    @Override
+    public void deleteVoteKey(Long pollId, String participantToken) {
+        String dupKey = buildDupKey(pollId, participantToken);
+        stringRedisTemplate.delete(dupKey);
+    }
+
+    private String buildDupKey(Long pollId, String participantToken) {
+        return "vote:dup:" + pollId + ":" + participantToken;
     }
 }
