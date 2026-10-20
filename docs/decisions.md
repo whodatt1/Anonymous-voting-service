@@ -449,3 +449,19 @@
   - 중복 투표는 Redis SETNX + DB UNIQUE가 이미 방어 → Rate Limit의 추가 방어 가치 없음
   - NAT 환경에서 같은 공인 IP를 공유하는 정상 투표자가 429를 받는 오탐 발생
 - 트레이드오프: 토큰 사이클링(쿠키 삭제 후 새 토큰으로 반복 투표)은 익명 시스템의 구조적 한계로 수용 — Rate Limit 유지 시에도 완전 차단 불가
+
+## [2026-10-19] castVote Saga 보상 트랜잭션 — SETNX 키 잔존 문제 수정
+- 결정: DB INSERT와 Redis INCR을 단일 try 블록으로 묶고, 두 catch 블록
+  (DataIntegrityViolationException, RuntimeException) 모두에서 deleteVoteKey()
+  호출로 SETNX 키를 즉시 정리하는 보상 트랜잭션 적용
+- 배경: [2026-06-28] 결정 당시 "TTL 만료로 자연 정리"로 보류한 문제.
+  구 코드에서 두 가지 구멍 존재:
+  ① save() 실패 시 catch에 보상 없음
+  ② increment()가 try 바깥에 위치해 실패해도 보상 경로 자체가 없음
+  → SETNX 키 잔존 구간(최대 투표 TTL) 동안 정상 사용자가 재투표 불가 상태에 빠짐
+- 대안: TTL 만료 대기 유지 — 구현 불필요하나 수 시간~수 일의 불일치 상태 수용 불가
+- 채택 이유 / 트레이드오프: save()·increment()를 같은 try 안에 묶어
+  단일 catch가 모든 실패 경로를 커버. deleteVoteKey() 자체 실패 시 보상이 불완전해지는
+  한계는 남으나, TTL이 최종 안전망 역할을 유지하므로 수용 가능한 트레이드오프.
+- 구현: DuplicateVoteCheckPort에 deleteVoteKey() 추가,
+  VoteService catch 블록 두 곳에서 보상 호출
